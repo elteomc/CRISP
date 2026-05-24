@@ -1,3 +1,9 @@
 .env
 .pingpong_resume.json
 transcript/
+.claude/
+
+# Markdown and LaTeX kept out of version control, except README.md
+*.md
+!README.md
+*.tex
