@@ -67,3 +67,15 @@ function vjp(c::AffineConstraint, gbar::AbstractVector; tol_rank = 1e-6)
     Q = Matrix(F.Q)[:, 1:m]
     return gbar - Q * (Q' * gbar)
 end
+
+"""
+    vjp(c::AffineConstraint, res::ProjectionResult, gbar) -> Vector
+
+Three-argument form matching the nonlinear layer, used by the AD rule. The
+affine VJP is input-independent, so `res` only enforces that no gradient is
+claimed unless the projection succeeded (I10).
+"""
+function vjp(c::AffineConstraint, res::ProjectionResult, gbar::AbstractVector)
+    res.status === :success || error("no gradient is claimed for status :$(res.status)")
+    return vjp(c, gbar)
+end

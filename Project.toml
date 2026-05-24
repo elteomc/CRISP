@@ -1,16 +1,12 @@
 name = "StructPINN"
 uuid = "9f2a7c34-5e6b-4d18-a3c9-7b2e1f0a4d65"
-authors = ["Angelo Farfan"]
 version = "0.1.0"
+authors = ["Angelo Farfan"]
 
 [deps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
+ChainRulesCore = "1.26.1"
 julia = "1.10"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]

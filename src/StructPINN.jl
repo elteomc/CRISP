@@ -17,14 +17,16 @@ This module currently implements:
 module StructPINN
 
 using LinearAlgebra
+using ChainRulesCore
 
 export ProjectionResult, issuccess
 export AffineConstraint, NonlinearConstraint
-export project, vjp
+export project, vjp, correct
 export circle_constraint, tangential_constraint
 
 include("projection_result.jl")
 include("affine.jl")
 include("nonlinear.jl")
+include("ad.jl")
 
 end # module

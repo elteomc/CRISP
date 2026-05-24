@@ -1,6 +1,7 @@
 using StructPINN
 using Test
 using LinearAlgebra
+using Zygote
 
 # Central-difference gradient of a scalar function phi: R^n -> R, used for the
 # finite-difference VJP checks (PLAN.md I11).
@@ -17,4 +18,5 @@ end
 @testset "StructPINN" begin
     include("test_affine.jl")
     include("test_nonlinear.jl")
+    include("test_ad.jl")
 end
