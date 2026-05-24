@@ -72,8 +72,8 @@ separate (PLAN.md I4, I5, I13):
   `:singular_constraint`
 """
 function project(c::NonlinearConstraint, zhat::AbstractVector;
-                 maxiter = 50, tol = 1e-10, tol_c = 1e-8,
-                 tol_rank = 1e-6, cond_max = 1e8, amin = 1e-12)
+                 maxiter = 50, tol = 1e-10, tol_c = 1e-8, tol_rank = 1e-6,
+                 cond_max = 1e8, singular_tol = 1e-12, amin = 1e-12)
     zh = float.(zhat)
     T = eltype(zh)
     n = length(zh)
@@ -96,8 +96,8 @@ function project(c::NonlinearConstraint, zhat::AbstractVector;
             break
         end
         _, M = _kkt(c, z, l, n, m)
-        if minimum(svdvals(M)) < 1 / cond_max          # M effectively singular
-            solve_failed = true
+        if minimum(svdvals(M)) < singular_tol          # M numerically singular, cannot solve
+            solve_failed = true                         # (distinct from the cond_max policy, I5)
             break
         end
         step = M \ (-Fv)

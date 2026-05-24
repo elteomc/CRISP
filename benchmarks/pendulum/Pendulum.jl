@@ -10,10 +10,11 @@ failure counter (I10). The projected baseline (M3/M4) plugs into the same harnes
 """
 module Pendulum
 
-using Random, Statistics, Zygote
+using Random, Statistics, Zygote, StructPINN
 
 export H, sample_band, init_mlp, field, rollout,
        vanilla_loss, soft_loss, train!,
+       energy_constraint, projected_rollout, projected_loss, projected_rollout_status!,
        energy_violation, traj_rmse, energy_drift,
        FailureCounter, record!
 
@@ -109,6 +110,67 @@ function soft_loss(p, data, dt; beta = 1.0)
     return s / length(data)
 end
 
+# ---------------- per-status failure counter (I10) ----------------
+# Baselines record none; the projected model records each ProjectionResult status.
+struct FailureCounter
+    counts::Dict{Symbol,Int}
+end
+FailureCounter() = FailureCounter(Dict{Symbol,Int}())
+record!(fc::FailureCounter, s::Symbol) = (fc.counts[s] = get(fc.counts, s, 0) + 1; fc)
+
+# ---------------- hard-constraint (projected) model, M3 ----------------
+# The energy manifold H(z) = H0 as a StructPINN nonlinear constraint, with its
+# analytic Jacobian and Lagrangian Hessian.
+function energy_constraint(H0)
+    NonlinearConstraint(
+        z -> [0.5 * z[2]^2 + (1 - cos(z[1])) - H0],
+        z -> reshape([sin(z[1]), z[2]], 1, 2),
+        (z, l) -> l[1] .* [cos(z[1]) 0.0; 0.0 1.0],
+    )
+end
+
+# Projected rollout: after each RK4 step, project the state back onto H(z)=H0 via
+# the differentiable hard-constraint layer (correct, with its rrule). This is the
+# "projected neural ODE" baseline (PLAN.md 8.1 config 3). Differentiable for training.
+function projected_rollout(p, z0, dt, nsteps, H0)
+    ec = energy_constraint(H0)
+    buf = Zygote.Buffer(z0, length(z0), nsteps + 1)
+    buf[:, 1] = z0
+    z = z0
+    for k in 1:nsteps
+        zr = rk4_step(zz -> field(p, zz), z, dt)
+        z = correct(ec, zr)
+        buf[:, k + 1] = z
+    end
+    return copy(buf)
+end
+
+function projected_loss(p, data, dt)
+    s = 0.0
+    for d in data
+        nsteps = size(d.traj, 2) - 1
+        pred = projected_rollout(p, d.z0, dt, nsteps, d.H0)
+        s += sum(abs2, pred .- d.traj)
+    end
+    return s / length(data)
+end
+
+# Non-differentiable projected rollout that records each projection status into a
+# FailureCounter (I10). Used for evaluation, not training.
+function projected_rollout_status!(p, z0, dt, nsteps, H0, fc::FailureCounter)
+    ec = energy_constraint(H0)
+    z = copy(z0)
+    states = [copy(z)]
+    for _ in 1:nsteps
+        zr = rk4_step(zz -> field(p, zz), z, dt)
+        res = project(ec, zr)
+        record!(fc, res.status)
+        z = res.zstar
+        push!(states, copy(z))
+    end
+    return reduce(hcat, states)
+end
+
 # ---------------- Adam over the NamedTuple of parameters ----------------
 _ntmap(f, nts...) = NamedTuple{keys(nts[1])}(map(f, map(values, nts)...))
 
@@ -142,13 +204,5 @@ function energy_drift(p, d, dt, nlong)
     pred = rollout(p, d.z0, dt, nlong)
     return abs(H(pred[:, end]) - d.H0)
 end
-
-# Per-status failure counter for projection layers (I10). Baselines record none;
-# the projected model (M3/M4) records each ProjectionResult status here.
-struct FailureCounter
-    counts::Dict{Symbol,Int}
-end
-FailureCounter() = FailureCounter(Dict{Symbol,Int}())
-record!(fc::FailureCounter, s::Symbol) = (fc.counts[s] = get(fc.counts, s, 0) + 1; fc)
 
 end # module

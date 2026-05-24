@@ -46,3 +46,30 @@ using Test, Random, Statistics, Zygote
     @test fc.counts[:success] == 2
     @test fc.counts[:nonunique_input] == 1
 end
+
+@testset "M3 projected (hard-constraint) rollout" begin
+    dt = 0.1
+    nobs = 20
+    rng = MersenneTwister(7)
+    data = sample_band(4, dt, nobs; rng = rng)
+    p = init_mlp(seed = 3)
+    d = data[1]
+
+    # The projected rollout holds energy on the manifold to projection tolerance,
+    # and every step projects cleanly (:success), recorded in the counter (I10).
+    fc = FailureCounter()
+    traj = projected_rollout_status!(p, d.z0, dt, nobs, d.H0, fc)
+    @test size(traj) == (2, nobs + 1)
+    @test energy_violation(traj, d.H0).max < 1e-6
+    @test get(fc.counts, :success, 0) == nobs
+
+    # The differentiable projected rollout backprops through the hard-constraint
+    # layer: gradient flows and is finite and nonzero.
+    g = Zygote.gradient(pp -> projected_loss(pp, data, dt), p)[1]
+    @test all(isfinite, g.W1)
+    @test sum(abs, g.W1) > 0
+
+    # And it trains.
+    _, hist = train!(pp -> projected_loss(pp, data, dt), p; steps = 40, lr = 1e-2)
+    @test hist[end] < hist[1]
+end
