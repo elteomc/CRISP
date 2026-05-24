@@ -1,11 +1,3 @@
-# GitHub Actions CI for StructPINN.
-#
-# This file is parked here instead of .github/workflows/ because the push token
-# currently lacks the GitHub OAuth "workflow" scope, so commits under
-# .github/workflows/ are rejected. To activate CI:
-#   1. grant the scope (e.g. `gh auth refresh -h github.com -s workflow`, or
-#      use a PAT that includes the `workflow` scope), then
-#   2. move this file to .github/workflows/CI.yml and push.
 name: CI
 on:
   push:
