@@ -93,3 +93,26 @@ end
         @test isapprox(getfield(g, f)[ci], fd; rtol = 1e-4, atol = 1e-8)
     end
 end
+
+@testset "M4 evaluation suite" begin
+    dt = 0.1
+    nobs = 10
+    nlong = 40
+    rng = MersenneTwister(21)
+    train = sample_band(4, dt, nobs; rng = rng)
+    test = sample_band(3, dt, nobs; rng = rng)
+    p0 = init_mlp(seed = 9)
+
+    pv, _ = train!(p -> vanilla_loss(p, train, dt), p0; steps = 30, lr = 1e-2)
+    ev = evaluate_model((d, n) -> rollout(pv, d.z0, dt, n), test, dt, nobs, nlong)
+    @test all(isfinite, (ev.rmse, ev.emax, ev.edrift, ev.rmse_long))
+
+    # Projected model: long-horizon energy drift ~0, every projection :success.
+    pp, _ = train!(p -> projected_loss(p, train, dt), p0; steps = 30, lr = 1e-2)
+    fc = FailureCounter()
+    evP = evaluate_model((d, n) -> projected_rollout_status!(pp, d.z0, dt, n, d.H0, fc),
+                         test, dt, nobs, nlong)
+    @test evP.edrift < 1e-6
+    @test isfinite(evP.rmse_long)
+    @test collect(keys(fc.counts)) == [:success]
+end

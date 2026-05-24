@@ -15,7 +15,7 @@ using Random, Statistics, Zygote, StructPINN
 export H, sample_band, init_mlp, field, rollout,
        vanilla_loss, soft_loss, train!,
        energy_constraint, projected_rollout, projected_loss, projected_rollout_status!,
-       energy_violation, traj_rmse, energy_drift,
+       energy_violation, traj_rmse, energy_drift, evaluate_model, reference_traj,
        FailureCounter, record!
 
 # ---------------- physics ----------------
@@ -203,6 +203,24 @@ traj_rmse(pred, truth) = sqrt(mean(abs2, pred .- truth))
 function energy_drift(p, d, dt, nlong)
     pred = rollout(p, d.z0, dt, nlong)
     return abs(H(pred[:, end]) - d.H0)
+end
+
+# Evaluate one trained model over the test set (M4). `predict(d, nsteps) ->
+# 2 x (nsteps+1)` lets each model use its own rollout. Returns the test-set means
+# of: trajectory RMSE at the training horizon, max energy violation, long-horizon
+# energy drift, and long-horizon trajectory RMSE against the reference solution.
+function evaluate_model(predict, test_data, dt, nobs, nlong)
+    rmse = Float64[]; emax = Float64[]; edrift = Float64[]; rmse_long = Float64[]
+    for d in test_data
+        pred = predict(d, nobs)
+        push!(rmse, traj_rmse(pred, d.traj))
+        push!(emax, energy_violation(pred, d.H0).max)
+        long = predict(d, nlong)
+        push!(edrift, abs(H(long[:, end]) - d.H0))
+        push!(rmse_long, traj_rmse(long, reference_traj(d.z0, dt, nlong)))
+    end
+    return (rmse = mean(rmse), emax = mean(emax),
+            edrift = mean(edrift), rmse_long = mean(rmse_long))
 end
 
 end # module

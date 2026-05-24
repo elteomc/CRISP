@@ -8,6 +8,10 @@ Manifest.toml
 *.jl.cov
 *.jl.*.cov
 
+# Benchmark study outputs (reproducible via study.jl / plots.jl)
+results/
+*.png
+
 # LaTeX build artifacts (proposal source kept local; build with bibtex)
 *.pdf
 *.aux
