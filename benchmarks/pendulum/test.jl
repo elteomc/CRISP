@@ -73,3 +73,23 @@ end
     _, hist = train!(pp -> projected_loss(pp, data, dt), p; steps = 40, lr = 1e-2)
     @test hist[end] < hist[1]
 end
+
+@testset "M3 projected gradient vs finite differences" begin
+    # End-to-end correctness: the Zygote gradient of the projected loss (which
+    # backprops through the hard-constraint rrule inside the RK4 rollout) must
+    # match central finite differences. Spot-check a few parameter entries.
+    dt = 0.1
+    nobs = 10
+    rng = MersenneTwister(11)
+    data = sample_band(3, dt, nobs; rng = rng)
+    p = init_mlp(seed = 5)
+    L(pp) = projected_loss(pp, data, dt)
+    g = Zygote.gradient(L, p)[1]
+
+    perturb(q, f, ci, h) = (r = deepcopy(q); getfield(r, f)[ci] += h; r)
+    h = 1e-6
+    for (f, ci) in [(:W1, CartesianIndex(2, 1)), (:W3, CartesianIndex(1, 3)), (:b2, CartesianIndex(4))]
+        fd = (L(perturb(p, f, ci, h)) - L(perturb(p, f, ci, -h))) / (2h)
+        @test isapprox(getfield(g, f)[ci], fd; rtol = 1e-4, atol = 1e-8)
+    end
+end
