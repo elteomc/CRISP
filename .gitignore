@@ -3,6 +3,24 @@
 transcript/
 .claude/
 
+# Julia: libraries pin deps via Project.toml compat, not a committed Manifest
+Manifest.toml
+*.jl.cov
+*.jl.*.cov
+
+# LaTeX build artifacts (proposal source kept local; build with bibtex)
+*.pdf
+*.aux
+*.log
+*.bbl
+*.blg
+*.bcf
+*.fls
+*.fdb_latexmk
+*.out
+*.run.xml
+*.synctex.gz
+
 # Markdown and LaTeX kept out of version control, except README.md
 *.md
 !README.md
