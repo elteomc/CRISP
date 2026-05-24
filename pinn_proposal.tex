@@ -1,0 +1,217 @@
+\documentclass[12pt]{extarticle}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{parskip}
+
+\title{\textbf{Beyond Soft PINNs: Differentiable Hard-Constraint Enforcement\\
+for Scientific Machine Learning in Julia}}
+\author{Angelo Farfan}
+\date{March 20, 2026}
+
+\begin{document}
+\maketitle
+
+% ─────────────────────────────────────────────
+\section*{Motivation and Problem Statement}
+
+Physics-informed neural networks (PINNs) and neural differential equation
+models have become a standard way to inject physical knowledge into machine
+learning by training neural networks against the residuals of governing
+differential equations, boundary conditions, and initial conditions.
+Raissi, Perdikaris, and Karniadakis introduced this paradigm and demonstrated
+that a single neural network could approximate solutions to complex PDEs when
+trained with the right physics-based loss terms~\cite{raissi2019}.
+In the Julia ecosystem, this workflow is directly supported by
+\texttt{NeuralPDE.jl}~\cite{zubov2021} for PDE problems and by
+\texttt{DiffEqFlux.jl}~\cite{rackauckas2019} for neural ordinary differential
+equations (neural ODEs), while \texttt{ModelingToolkit.jl}~\cite{rackauckas2022}
+provides a symbolic language for specifying governing equations in a clean,
+reusable way.
+
+However, a standard PINN is only physics-informed through its \emph{loss
+function} --- it does not automatically satisfy physical laws by
+construction. Conservation laws, positivity, normalization, or other nonlinear
+constraints are typically enforced only through soft penalty terms, and can
+therefore remain violated even when the training loss is low. A network may
+reduce the residual while still quietly drifting in the quantity you actually
+care about, such as total energy or mass. This gap is well-documented in
+practice, and has motivated recent work on hard-constraint variants.
+Lu~et~al.\ introduced hard-constrained PINNs for inverse design problems,
+showing that exact boundary condition enforcement improves both accuracy and
+training stability~\cite{lu2021}. More recently, Physics-Constrained Flow
+Matching (PCFM) demonstrated that nonlinear projection layers can impose
+exact constraints during generative inference without sacrificing model
+quality~\cite{utkarsh2025}.
+
+The goal of this project is to build a Julia prototype for
+\emph{differentiable hard-constraint enforcement} in scientific machine
+learning, with a focus on PINNs and neural ODE models. The central question is:
+
+\begin{quote}
+When does replacing a soft constraint penalty with a differentiable
+projection or correction step improve physical accuracy, training stability,
+and long-horizon prediction quality?
+\end{quote}
+
+% ─────────────────────────────────────────────
+\section*{Proposed Method}
+
+The proposed approach is to augment a standard PINN or neural ODE pipeline
+with a \emph{constraint layer} that maps the network's raw output~$\hat{z}$
+to a corrected output~$z^*$ that satisfies one or more physical constraints.
+Concretely, the correction solves a small optimization problem at each forward
+pass:
+\begin{equation}
+  z^* = \arg\min_{z}\; \|z - \hat{z}\|^2 \quad \text{subject to} \quad c(z) = 0,
+\end{equation}
+where $c(z) = 0$ encodes a physical invariant such as energy conservation,
+mass conservation, or boundary consistency.
+This layer can be placed in one of two settings: (1)~as an \emph{output
+correction for PINNs}, projecting the network's predicted solution field onto
+the constraint set before evaluating the loss, or (2)~as a
+\emph{state correction for neural ODEs}, projecting the integrated state back
+to the physically admissible manifold after each time step.
+
+The non-trivial part is that this correction step must be
+\emph{differentiable}: gradients need to flow through it during
+backpropagation so the network can still be trained end-to-end.
+The key insight, formalized in the OptNet work of Amos and
+Kolter~\cite{amos2017}, is that instead of differentiating through every
+iteration of the inner solver, one can differentiate the optimality
+conditions (KKT conditions) of the projection problem directly. By the
+implicit function theorem, the gradient of $z^*$ with respect to $\hat{z}$
+reduces to solving a single linear system involving the Jacobian of those
+optimality conditions --- regardless of how many iterations the forward solver
+took. This is both cheaper and more numerically stable than unrolling the
+solver.
+
+% ─────────────────────────────────────────────
+\section*{Prior Work and Background}
+
+This project sits at the intersection of four lines of existing work.
+
+\textbf{PINNs and NeuralPDE.jl.}
+Raissi et al.\ established the PINN training paradigm, showing that PDE
+residuals and boundary conditions can be incorporated into the neural network
+loss function~\cite{raissi2019}. Zubov et al.\ automated much of this in
+Julia with \texttt{NeuralPDE.jl}, supporting symbolic PDE specification,
+multiple training strategies, and GPU execution~\cite{zubov2021}.
+
+\textbf{Neural ODEs and DiffEqFlux.jl.}
+Chen et al.\ introduced neural ODEs, where an ODE solver is used as a
+differentiable layer in the model, making the gradient computation through
+the solver a first-class concern~\cite{chen2018}. \texttt{DiffEqFlux.jl}
+provides Julia support for these models and can automatically select between
+forward-mode, reverse-mode, and adjoint-based differentiation
+strategies~\cite{rackauckas2019}.
+
+\textbf{Optimization as a differentiable layer.}
+Amos and Kolter demonstrated with OptNet that a constrained quadratic program
+can be embedded as a differentiable layer inside a neural network, with the
+backward pass derived analytically from the KKT conditions of the
+problem~\cite{amos2017}. This is the foundational result that makes the
+constraint layer idea computationally tractable.
+
+\textbf{Hard-constraint enforcement.}
+Lu et al.\ showed, in the context of inverse design, that hard-constrained
+PINNs outperform soft-penalty variants when exact boundary condition
+satisfaction is critical~\cite{lu2021}. PCFM extended this idea to
+generative models, showing that iterative nonlinear projection can enforce
+exact physical constraints during sampling without retraining~\cite{utkarsh2025}.
+
+Together, these works support the view that exact or near-exact constraint
+enforcement is a meaningful improvement over soft penalties --- but a general,
+reusable Julia interface for doing this inside PINN and neural ODE training
+does not yet exist.
+
+% ─────────────────────────────────────────────
+\section*{Methodology}
+
+The project will proceed in three stages.
+
+\textbf{Stage 1: Baseline.}
+We will implement a standard soft-penalty PINN and neural ODE baseline using
+\texttt{NeuralPDE.jl}~\cite{zubov2021} and \texttt{DiffEqFlux.jl}~\cite{rackauckas2019},
+with \texttt{ModelingToolkit.jl}~\cite{rackauckas2022} used for symbolic
+specification of the governing equations and constraints.
+The anchor benchmark will be a Hamiltonian ODE system (e.g., a simple
+pendulum or two-body problem) where the physical constraint is energy
+conservation. This benchmark is ideal because the failure mode of soft
+PINNs --- energy drift over long horizons --- is visually obvious and easy to
+quantify.
+
+\textbf{Stage 2: Constraint layer.}
+We will implement the correction step using \texttt{Optimization.jl} for the
+inner forward solve and \texttt{Zygote.jl} for the backward pass. The first
+version will use unrolled differentiation through a fixed number of projection
+iterations. If time permits, a second version will use implicit
+differentiation through the optimality conditions following the approach of
+Amos and Kolter~\cite{amos2017}, requiring a linear solve via
+\texttt{LinearSolve.jl} in the backward pass.
+
+\textbf{Stage 3: Comparison.}
+We will compare three configurations on the benchmark: (1)~soft PINN
+baseline with residual penalties, (2)~projected/corrected model with the
+constraint layer, and (3)~a hybrid approach combining soft penalties with a
+lighter projection step. The comparison will measure constraint violation,
+solution error against a reference solver, training wall time, and training
+stability across random seeds.
+
+% ─────────────────────────────────────────────
+\section*{Julia Ecosystem Contribution}
+
+The primary software contribution of this project is a reusable module ---
+tentatively called \texttt{ConstraintLayers.jl} --- that exposes a small,
+clean interface for constrained correction inside scientific ML workflows.
+The design philosophy mirrors that of the SciML ecosystem~\cite{rackauckas2022}:
+isolate one focused abstraction, connect it to existing Julia packages, and
+validate it on concrete examples.
+The module would build on \texttt{NeuralPDE.jl}, \texttt{DiffEqFlux.jl},
+\texttt{ModelingToolkit.jl}, and \texttt{Optimization.jl} rather than
+reimplementing solvers from scratch.
+
+If continued beyond the semester, natural follow-on contributions include: a
+generic constraint-layer API that other SciML packages could adopt as an
+extension point; documented benchmark examples showing when hard constraints
+provide measurable benefit; and a pull request or extension hook into
+\texttt{NeuralPDE.jl} or \texttt{DiffEqFlux.jl} once the API stabilizes.
+
+% ─────────────────────────────────────────────
+\section*{Evaluation Plan}
+
+The project will evaluate both physical correctness and computational
+practicality. The main metrics are: constraint violation after training or
+rollout, PDE/ODE residual error, solution error against a reference solver,
+training wall time, and training stability across multiple random seeds. This
+metric design is consistent with the evaluation approach used in PCFM, which
+explicitly measures constraint violation and wall time~\cite{utkarsh2025}, and
+with the style of quantitative comparison used in SciML
+benchmarks~\cite{rackauckas2022}.
+
+A successful semester-scale outcome is: one solid benchmark problem, one
+working constraint layer implementation, and one clear empirical conclusion
+about when hard constraints outperform soft penalties. A stretch goal is a
+second benchmark or a full implicit backward pass via the KKT conditions.
+
+% ─────────────────────────────────────────────
+\section*{Expected Deliverables}
+
+By the end of the semester we expect to produce:
+\begin{itemize}
+  \item A Julia codebase implementing a first version of the constraint layer,
+        with a clean interface over \texttt{Optimization.jl}.
+  \item One benchmark study comparing soft vs.\ hard constraint enforcement on
+        a Hamiltonian ODE system, with quantitative metrics and training curves.
+  \item A short written report covering methodology, results, and discussion.
+  \item A roadmap for how this could become a reusable package contribution
+        to the SciML ecosystem after the course.
+\end{itemize}
+
+% ─────────────────────────────────────────────
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
