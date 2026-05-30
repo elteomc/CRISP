@@ -25,7 +25,8 @@ results/
 *.run.xml
 *.synctex.gz
 
-# Markdown and LaTeX kept out of version control, except README.md
+# Markdown and LaTeX kept out of version control, except README.md and quick.md
 *.md
 !README.md
+!quick.md
 *.tex
