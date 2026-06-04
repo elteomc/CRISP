@@ -2,48 +2,83 @@
 
 ## Summary
 
-StructPINN builds differentiable hard-constraint layers for SciML in Julia that correct a network output zhat onto a constraint set c(z)=0 by differentiating the KKT optimality conditions rather than unrolling the solver, to test when hard enforcement beats soft penalties on energy and mass conservation. The plan is now hardened into 12 invariants and gated milestones (M0 infra, M0.5 AD/KKT spike, M1 affine layer, M2 soft baseline, M3 nonlinear KKT layer, M4 comparison, M5 required fixed-grid field correction), with the anchor benchmark a Hamiltonian neural ODE on a degeneracy-safe pendulum libration orbit using a fixed-step rollout. Current status: no code on disk yet, refs.bib unwritten so the proposal does not compile, and the nonlinear indefinite-KKT adjoint is the hardest upcoming build, the immediate next step is implementing M0, M0.5, and M1 with invariant-proving tests. Main open issues are logistical (timeline, team, inequality scope).
+StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and a fixed-grid field correction benchmark. Projected benchmark paths record statuses during training and evaluation.
 
-## Open questions
+## Current Status
 
-- Timeline: class deliverable still due, already submitted, or post-semester research phase?
-- Team: solo or with teammates, and any coordination with the PCFM group under Utkarsh?
-- Are inequality constraints (positivity, normalization) in scope for the class timeline, or is equality enough for first results?
-- Keep or drop the optional agentic layer?
+- M0 is effectively complete: package skeleton, tests, CI, and `refs.bib` exist. The proposal builds after the standard `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` sequence.
+- M0.5, M1, M2, M3, M4, M5, and the current M6 inequality slices are implemented and tested at prototype scale.
+- M1 now handles overconstrained affine systems by returning `:singular_constraint` instead of crashing.
+- I10 training status logging is implemented for projected pendulum training. Non-success projection statuses are counted when a `FailureCounter` is supplied and flagged before invalid gradients are used.
+- M5 fixed-grid field correction uses the M1 affine layer to enforce discrete mass on supervised 1D grid fields.
+- M6 now includes `DiagonalWeightedAffineConstraint`, which handles diagonal weighted Euclidean projection onto affine constraints.
+- M6 now includes `BoxConstraint`, which handles componentwise lower and upper bounds with active-set VJPs and kink status handling.
+- M6 also includes `WeightedSimplexConstraint`, which enforces nonnegativity and weighted normalization with active-set VJPs and kink status handling.
+- M6 now includes `BoundedWeightedSimplexConstraint`, which enforces one weighted equality together with lower and upper bounds.
+- M6 now includes `DenseLinearQPConstraint`, which projects onto small dense linear equality and inequality systems by exhaustive active-set enumeration.
+- M6 now includes sparse equality KKT systems through `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint`.
+- Remaining M6 work: iterative or sparse inequality backends and larger PINN integrations.
 
-## Status
+## Open Questions
 
-Round 5, last verdict approve, gpt spend $0.32 / $4.00
+- Should the field benchmark evolve from the supervised fixed-grid surrogate into heat or Burgers next?
+- Should the next paper-style writeup include workflow automation, or focus only on scientific ML constraint layers?
+- Should bibliography verification happen before M5, or in parallel with it?
+- Should the project coordinate with the PCFM group after the first complete M4 or M5 result?
 
-## Latest change
+## Latest Change
 
-- round 5 (claude): Rewrote PLAN.md to resolve every Round 2 and Round 4 finding via 12 stated invariants, a ProjectionResult API, a gated M0.5 spike, a precise degeneracy-safe pendulum benchmark, an honest PINN scope decision, and a findings-to-resolution map, fixed a typo and removed prose semicolons per repo rules.
+- Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
+- Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
+- Added `BoxConstraint` for componentwise bounds and integrated it into the field benchmark as a bounded-output baseline.
+- Added `WeightedSimplexConstraint` for positivity plus weighted normalization.
+- Added `BoundedWeightedSimplexConstraint` for a weighted equality plus finite lower and upper bounds.
+- Added `DenseLinearQPConstraint` for small dense linear-QP projections.
+- Added `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint` for sparse equality KKT solves and VJPs.
+- Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
+- Integrated the positivity-plus-mass projection and bounded-mass projection into the fixed-grid field benchmark.
 
-## Codebase map
-
-A curated index so a new session can find the right file fast without scanning the tree. Regenerate with /zoom-out when it drifts. The Julia package is `StructPINN`, loaded with `using StructPINN`.
+## Codebase Map
 
 Package source (`src/`)
 - `src/StructPINN.jl`: top-level module, exports the public API and includes the layer files.
-- `src/projection_result.jl`: `ProjectionResult`, the per-call status object that records every projection outcome so no failure is silent (I10).
-- `src/affine.jl`: `AffineConstraint` and its projection onto `{z : A z = b}` via thin QR with no explicit inverse, milestone M1.
-- `src/nonlinear.jl`: `NonlinearConstraint` plus the `circle_constraint` and `tangential_constraint` toys, the nonlinear KKT projection spike M0.5 with analytic derivatives.
-- `src/ad.jl`: `correct`, the differentiable forward map, and its `ChainRulesCore.rrule` so a layer trains end to end under reverse-mode AD.
+- `src/projection_result.jl`: `ProjectionResult`, the per-call status object that records projection outcomes.
+- `src/affine.jl`: `AffineConstraint` and `DiagonalWeightedAffineConstraint`, with rank checks and VJPs.
+- `src/sparse_kkt.jl`: sparse KKT equality projection and weighted sparse KKT projection.
+- `src/box.jl`: `BoxConstraint`, componentwise clamp projection, and active-set VJP.
+- `src/nonlinear.jl`: `NonlinearConstraint`, toy constraints, Newton KKT solve, and implicit VJP.
+- `src/simplex.jl`: `WeightedSimplexConstraint`, projection onto `{z >= 0, weights' z = mass}`, and active-set VJP.
+- `src/bounded_simplex.jl`: `BoundedWeightedSimplexConstraint`, projection onto `{lower <= z <= upper, weights' z = mass}`, and active-set VJP.
+- `src/dense_qp.jl`: `DenseLinearQPConstraint`, exhaustive active-set projection onto `{Aeq * z = beq, G * z <= h}`, and active-set VJP.
+- `src/ad.jl`: `correct` and its `ChainRulesCore.rrule`.
 
 Tests (`test/`)
-- `test/runtests.jl`: test entry point, finite-difference and unrolled-Newton oracles, includes the suites below.
-- `test/test_affine.jl`: M1 affine projection correctness and VJP checks.
-- `test/test_nonlinear.jl`: M0.5 nonlinear KKT spike, regular, nonunique-input, and failure-status cases.
-- `test/test_m3.jl`: M3 implicit-diff VJP checked against the unrolled-Newton oracle.
-- `test/test_ad.jl`: Zygote gradients through `correct` matched to finite differences.
+- `test/runtests.jl`: test entry point, finite-difference helper, and unrolled-Newton oracle.
+- `test/test_affine.jl`: affine projection correctness, VJP checks, and rank-failure regressions.
+- `test/test_weighted_affine.jl`: weighted affine projection, VJP, Zygote, and rank-failure checks.
+- `test/test_sparse_kkt.jl`: sparse KKT projection, weighted sparse KKT projection, VJP, Zygote, and rank-failure checks.
+- `test/test_box.jl`: box projection, outside-clamp VJP, exact-bound kink, and infeasible-bound checks.
+- `test/test_nonlinear.jl`: nonlinear KKT regular and failure-status cases.
+- `test/test_m3.jl`: nonlinear implicit-diff VJP checked against a ForwardDiff oracle.
+- `test/test_simplex.jl`: M6 weighted simplex projection, active-set VJP, Zygote, kink, and infeasible cases.
+- `test/test_bounded_simplex.jl`: M6 bounded weighted simplex projection, active-set VJP, Zygote, kink, vertex, and infeasible cases.
+- `test/test_dense_qp.jl`: M6 dense linear-QP projection, finite-difference VJP checks, Zygote, kink, infeasible, and rank-failure cases.
+- `test/test_ad.jl`: Zygote gradients through `correct`.
 
 Pendulum benchmark (`benchmarks/pendulum/`)
-- `benchmarks/pendulum/Pendulum.jl`: M2 harness module, pendulum physics, neural-ODE field, RK4 rollout, vanilla and soft losses, training, and metrics.
-- `benchmarks/pendulum/run_baselines.jl`: M2/M3 single comparison of vanilla, soft, and projected models on the energy band.
-- `benchmarks/pendulum/study.jl`: M4 multi-seed study writing the results table and plot-data CSVs.
-- `benchmarks/pendulum/plots.jl`: M4 figures (training curves, energy over time) from the study CSVs.
-- `benchmarks/pendulum/test.jl`: checks the M2 harness (data band, energy conservation, no angle wrap).
+- `benchmarks/pendulum/Pendulum.jl`: pendulum physics, neural ODE field, RK4 rollout, losses, projected rollout, training, status logging, and metrics.
+- `benchmarks/pendulum/run_baselines.jl`: single comparison of vanilla, soft, and projected models.
+- `benchmarks/pendulum/study.jl`: multi-seed study writing CSV artifacts.
+- `benchmarks/pendulum/plots.jl`: figures from study CSVs.
+- `benchmarks/pendulum/test.jl`: benchmark harness and projected-gradient tests.
+
+Field benchmark (`benchmarks/field/`)
+- `benchmarks/field/FieldMass.jl`: fixed-grid supervised field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, and bounded-mass field correction, training, status logging, and metrics.
+- `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, and bounded-projected field models.
+- `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
+- `benchmarks/field/test.jl`: field harness, projection, training, metric, and gradient tests.
 
 Spec and docs
-- `PLAN.md`: full specification, invariants I1..I13 and gated milestones M0..M5.
-- `quick.md`, `deep.md`: project summary and detailed notes.
+- `PLAN.md`: living specification, invariants, milestones, and scope.
+- `pinn_proposal.tex`: updated proposal narrative aligned with StructPINN.
+- `refs.bib`: draft bibliography. Entries marked verify still need source verification.
