@@ -42,7 +42,9 @@ using Test, Random, Statistics, Zygote
 
     # Failure counter (I10) tallies statuses.
     fc = FailureCounter()
-    record!(fc, :success); record!(fc, :success); record!(fc, :nonunique_input)
+    record!(fc, :success)
+    record!(fc, :success)
+    record!(fc, :nonunique_input)
     @test fc.counts[:success] == 2
     @test fc.counts[:nonunique_input] == 1
 end
@@ -70,8 +72,12 @@ end
     @test sum(abs, g.W1) > 0
 
     # And it trains.
-    _, hist = train!(pp -> projected_loss(pp, data, dt), p; steps = 40, lr = 1e-2)
+    train_fc = FailureCounter()
+    _, hist = train!(pp -> projected_loss(pp, data, dt; fc = train_fc),
+                     p; steps = 40, lr = 1e-2)
     @test hist[end] < hist[1]
+    @test get(train_fc.counts, :success, 0) == length(data) * nobs * 40
+    @test collect(keys(train_fc.counts)) == [:success]
 end
 
 @testset "M3 projected gradient vs finite differences" begin
@@ -86,7 +92,11 @@ end
     L(pp) = projected_loss(pp, data, dt)
     g = Zygote.gradient(L, p)[1]
 
-    perturb(q, f, ci, h) = (r = deepcopy(q); getfield(r, f)[ci] += h; r)
+    function perturb(q, f, ci, h)
+        r = deepcopy(q)
+        getfield(r, f)[ci] += h
+        return r
+    end
     h = 1e-6
     for (f, ci) in [(:W1, CartesianIndex(2, 1)), (:W3, CartesianIndex(1, 3)), (:b2, CartesianIndex(4))]
         fd = (L(perturb(p, f, ci, h)) - L(perturb(p, f, ci, -h))) / (2h)
@@ -108,7 +118,10 @@ end
     @test all(isfinite, (ev.rmse, ev.emax, ev.edrift, ev.rmse_long))
 
     # Projected model: long-horizon energy drift ~0, every projection :success.
-    pp, _ = train!(p -> projected_loss(p, train, dt), p0; steps = 30, lr = 1e-2)
+    train_fc = FailureCounter()
+    pp, _ = train!(p -> projected_loss(p, train, dt; fc = train_fc),
+                   p0; steps = 30, lr = 1e-2)
+    @test get(train_fc.counts, :success, 0) == length(train) * nobs * 30
     fc = FailureCounter()
     evP = evaluate_model((d, n) -> projected_rollout_status!(pp, d.z0, dt, n, d.H0, fc),
                          test, dt, nobs, nlong)

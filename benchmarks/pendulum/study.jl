@@ -19,6 +19,7 @@ models = ["vanilla", "soft", "projected"]
 metrics = (:rmse, :emax, :edrift, :rmse_long)
 acc = Dict(m => Dict(k => Float64[] for k in metrics) for m in models)
 status_total = FailureCounter()
+train_status_total = FailureCounter()
 curves = nothing
 energy_t = nothing
 
@@ -31,7 +32,12 @@ for seed in SEEDS
 
     pv, hv = train!(p -> vanilla_loss(p, train_data, DT), p0; steps = STEPS, lr = 1e-2)
     ps, hs = train!(p -> soft_loss(p, train_data, DT; beta = 5.0), p0; steps = STEPS, lr = 1e-2)
-    pp, hp = train!(p -> projected_loss(p, train_data, DT), p0; steps = STEPS, lr = 1e-2)
+    fc_train = FailureCounter()
+    pp, hp = train!(p -> projected_loss(p, train_data, DT; fc = fc_train),
+                    p0; steps = STEPS, lr = 1e-2)
+    for (s, c) in fc_train.counts
+        train_status_total.counts[s] = get(train_status_total.counts, s, 0) + c
+    end
 
     fc = FailureCounter()
     evs = Dict(
@@ -65,7 +71,8 @@ for m in models
     @printf("%-10s  RMSE %.4f+/-%.4f  max|dH| %.4f+/-%.4f  drift_long %.4f+/-%.4f  trajRMSE_long %.4f+/-%.4f\n",
             m, ms[:rmse]..., ms[:emax]..., ms[:edrift]..., ms[:rmse_long]...)
 end
-println("\nprojected-model projection statuses (all seeds): ", status_total.counts)
+println("\nprojected-model training projection statuses (all seeds): ", train_status_total.counts)
+println("projected-model evaluation projection statuses (all seeds): ", status_total.counts)
 
 # ---- write artifacts ----
 open(joinpath(OUT, "results.csv"), "w") do io

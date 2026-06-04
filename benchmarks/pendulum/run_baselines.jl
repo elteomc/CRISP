@@ -21,11 +21,14 @@ pv, _ = train!(p -> vanilla_loss(p, train_data, DT), p0; steps = 400, lr = 1e-2)
 println("training soft-penalty neural ODE (beta = 5) ...")
 ps, _ = train!(p -> soft_loss(p, train_data, DT; beta = 5.0), p0; steps = 400, lr = 1e-2)
 println("training projected (hard-constraint) neural ODE ...")
-pp, _ = train!(p -> projected_loss(p, train_data, DT), p0; steps = 400, lr = 1e-2)
+fc_train = FailureCounter()
+pp, _ = train!(p -> projected_loss(p, train_data, DT; fc = fc_train), p0; steps = 400, lr = 1e-2)
 
 # `predict(d, nsteps) -> trajectory` lets each model use its own rollout.
 function report(name, predict)
-    rmse = Float64[]; emax = Float64[]; drift = Float64[]
+    rmse = Float64[]
+    emax = Float64[]
+    drift = Float64[]
     for d in test_data
         pred = predict(d, NOBS)
         push!(rmse, traj_rmse(pred, d.traj))
@@ -42,4 +45,5 @@ println("\n=== held-out metrics (mean over $(length(test_data)) test trajectorie
 report("vanilla",       (d, n) -> rollout(pv, d.z0, DT, n))
 report("soft (beta=5)", (d, n) -> rollout(ps, d.z0, DT, n))
 report("projected",     (d, n) -> projected_rollout_status!(pp, d.z0, DT, n, d.H0, fc))
-println("\nprojected-model projection statuses: ", fc.counts)
+println("\nprojected-model training projection statuses: ", fc_train.counts)
+println("projected-model evaluation projection statuses: ", fc.counts)

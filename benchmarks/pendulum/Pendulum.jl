@@ -19,7 +19,7 @@ export H, sample_band, init_mlp, field, rollout,
        FailureCounter, record!
 
 # ---------------- physics ----------------
-# state z = (q, p); H(q,p) = 0.5 p^2 + (1 - cos q)
+# state z = (q, p), H(q,p) = 0.5 p^2 + (1 - cos q)
 H(z) = 0.5 * z[2]^2 + (1 - cos(z[1]))
 f_true(z) = [z[2], -sin(z[1])]                    # dq/dt = p, dp/dt = -sin q
 
@@ -111,12 +111,28 @@ function soft_loss(p, data, dt; beta = 1.0)
 end
 
 # ---------------- per-status failure counter (I10) ----------------
-# Baselines record none; the projected model records each ProjectionResult status.
+# Baselines record none. The projected model records each ProjectionResult status.
 struct FailureCounter
     counts::Dict{Symbol,Int}
 end
 FailureCounter() = FailureCounter(Dict{Symbol,Int}())
-record!(fc::FailureCounter, s::Symbol) = (fc.counts[s] = get(fc.counts, s, 0) + 1; fc)
+function record!(fc::FailureCounter, s::Symbol)
+    fc.counts[s] = get(fc.counts, s, 0) + 1
+    return fc
+end
+
+function _record_projection!(ec, zr, fc, failure_policy)
+    res = project(ec, zr)
+    fc === nothing || record!(fc, res.status)
+    if !issuccess(res)
+        if failure_policy === :error
+            error("projection failed with status :$(res.status)")
+        elseif failure_policy !== :continue
+            error("unknown projection failure policy :$(failure_policy)")
+        end
+    end
+    return nothing
+end
 
 # ---------------- hard-constraint (projected) model, M3 ----------------
 # The energy manifold H(z) = H0 as a StructPINN nonlinear constraint, with its
@@ -130,26 +146,31 @@ function energy_constraint(H0)
 end
 
 # Projected rollout: after each RK4 step, project the state back onto H(z)=H0 via
-# the differentiable hard-constraint layer (correct, with its rrule). This is the
-# "projected neural ODE" baseline (PLAN.md 8.1 config 3). Differentiable for training.
-function projected_rollout(p, z0, dt, nsteps, H0)
+# the differentiable hard-constraint layer. Status logging is ignored by AD, while
+# the correction itself uses the custom rrule. Non-success statuses are flagged
+# before their gradients can enter training.
+function projected_rollout(p, z0, dt, nsteps, H0; fc = nothing, failure_policy = :error)
     ec = energy_constraint(H0)
     buf = Zygote.Buffer(z0, length(z0), nsteps + 1)
     buf[:, 1] = z0
     z = z0
     for k in 1:nsteps
         zr = rk4_step(zz -> field(p, zz), z, dt)
+        Zygote.ignore() do
+            _record_projection!(ec, zr, fc, failure_policy)
+        end
         z = correct(ec, zr)
         buf[:, k + 1] = z
     end
     return copy(buf)
 end
 
-function projected_loss(p, data, dt)
+function projected_loss(p, data, dt; fc = nothing, failure_policy = :error)
     s = 0.0
     for d in data
         nsteps = size(d.traj, 2) - 1
-        pred = projected_rollout(p, d.z0, dt, nsteps, d.H0)
+        pred = projected_rollout(p, d.z0, dt, nsteps, d.H0;
+                                 fc = fc, failure_policy = failure_policy)
         s += sum(abs2, pred .- d.traj)
     end
     return s / length(data)
@@ -210,7 +231,10 @@ end
 # of: trajectory RMSE at the training horizon, max energy violation, long-horizon
 # energy drift, and long-horizon trajectory RMSE against the reference solution.
 function evaluate_model(predict, test_data, dt, nobs, nlong)
-    rmse = Float64[]; emax = Float64[]; edrift = Float64[]; rmse_long = Float64[]
+    rmse = Float64[]
+    emax = Float64[]
+    edrift = Float64[]
+    rmse_long = Float64[]
     for d in test_data
         pred = predict(d, nobs)
         push!(rmse, traj_rmse(pred, d.traj))
