@@ -19,7 +19,7 @@
 
     # I5: an ill-conditioned KKT matrix at a regular solution is flagged
     # :ill_conditioned, distinct from :success and :singular_constraint.
-    # Projecting from well inside the circle makes cond(M) moderate; a tight
+    # Projecting from well inside the circle makes cond(M) moderate. A tight
     # cond_max trips I5 while J stays full rank at the solution.
     ric = project(circle_constraint(1.0), [0.5, 0.0]; cond_max = 3.0)
     @test ric.status === :ill_conditioned

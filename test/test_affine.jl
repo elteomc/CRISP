@@ -24,4 +24,11 @@
     bbad = [1.0, 2.0]
     rbad = project(AffineConstraint(Abad, bbad), [3.0, 1.0])
     @test rbad.status === :singular_constraint
+
+    # More independent affine constraints than variables cannot have full row
+    # rank, so this must be reported rather than indexing past the QR basis.
+    Aover = [1.0 0.0; 0.0 1.0; 1.0 1.0]
+    bover = [1.0, 2.0, 3.0]
+    rover = project(AffineConstraint(Aover, bover), [0.0, 0.0])
+    @test rover.status === :singular_constraint
 end

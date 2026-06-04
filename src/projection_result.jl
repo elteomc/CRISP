@@ -16,6 +16,9 @@ silent (PLAN.md I10).
 - `:nonunique_input`     the input lies where the projection map is set-valued
                          or nondifferentiable (for example the centre of a
                          sphere constraint), so no derivative is claimed (I13).
+- `:infeasible_constraint`
+                         the constraint definition has no feasible point, so
+                         no projection or gradient is claimed.
 
 The last three are distinct conditions and must not be merged. `:singular_constraint`
 certifies the *solved point*, `:nonunique_input` is an *input-domain* failure,

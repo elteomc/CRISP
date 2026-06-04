@@ -9,8 +9,10 @@ using ForwardDiff
 function fd_grad(phi, x; h = 1e-6)
     g = zeros(float(eltype(x)), length(x))
     for i in eachindex(x)
-        xp = collect(float.(x)); xp[i] += h
-        xm = collect(float.(x)); xm[i] -= h
+        xp = collect(float.(x))
+        xp[i] += h
+        xm = collect(float.(x))
+        xm[i] -= h
         g[i] = (phi(xp) - phi(xm)) / (2h)
     end
     return g
@@ -41,4 +43,10 @@ end
     include("test_nonlinear.jl")
     include("test_ad.jl")
     include("test_m3.jl")
+    include("test_box.jl")
+    include("test_simplex.jl")
+    include("test_bounded_simplex.jl")
+    include("test_dense_qp.jl")
+    include("test_weighted_affine.jl")
+    include("test_sparse_kkt.jl")
 end

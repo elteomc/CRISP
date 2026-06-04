@@ -38,16 +38,20 @@ Its Jacobian `J(zstar) = (2 z_1, 0, ...) = 0` at the feasible point, a genuine
 LICQ failure *at the solution*. Used for the `:singular_constraint` M0.5 case.
 """
 function tangential_constraint(n::Int = 2)
+    Hlam(z, l) = begin
+        H = zeros(eltype(z), length(z), length(z))
+        H[1, 1] = 2 * l[1]
+        H
+    end
     NonlinearConstraint(
         z -> [z[1]^2],
         z -> reshape([i == 1 ? 2 * z[1] : zero(eltype(z)) for i in 1:length(z)], 1, length(z)),
-        (z, l) -> (H = zeros(eltype(z), length(z), length(z)); H[1, 1] = 2 * l[1]; H),
+        Hlam,
     )
 end
 
 # Build the constraint Jacobian Jz and the KKT matrix M at (z, l).
-# M = [ I + sum_i l_i Hess(c_i)(z)   J(z)' ;
-#       J(z)                          0    ]   (PLAN.md 4.4), symmetric, indefinite.
+# M is the symmetric indefinite saddle-point matrix from PLAN.md 4.4.
 function _kkt(c::NonlinearConstraint, z, l, n, m)
     Jz = c.J(z)
     M = [Matrix(I, n, n) + c.Hlam(z, l)   transpose(Jz);
@@ -125,7 +129,7 @@ function project(c::NonlinearConstraint, zhat::AbstractVector;
     # The input-vs-solution distinction is what separates a degenerate *input*
     # (nonunique or nondifferentiable, I13) from a degenerate *solution* (LICQ
     # failure at the solved point, I4). A singular M reached from a rank-deficient
-    # input Jacobian means zhat itself is the bad point; from a full-rank input it
+    # input Jacobian means zhat itself is the bad point. From a full-rank input it
     # means the iteration is approaching a degenerate solution. See PLAN.md M0.5.
     status =
         converged    ? (deficient ? :singular_constraint :
@@ -145,7 +149,7 @@ end
 
 Adjoint vector-Jacobian product. Rebuilds the exact KKT Jacobian `M` at the
 solved point `(res.zstar, res.lambda)` (PLAN.md I8), solves
-`M [w_z; w_l] = [gbar; 0]`, and returns `w_z`. Errors unless the projection
+`M * [w_z, w_l] = [gbar, 0]`, and returns `w_z`. Errors unless the projection
 succeeded, since no gradient is claimed otherwise (I10).
 """
 function vjp(c::NonlinearConstraint, res::ProjectionResult, gbar::AbstractVector)
