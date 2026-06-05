@@ -48,6 +48,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Verified the current bibliography against primary sources and official package documentation.
 - Added field and PDE plotting scripts, plus a multi-seed larger PDE study.
 - Generated current multi-seed result artifacts. Pendulum projected rollout has zero measured energy drift and lower long-horizon RMSE than vanilla or soft in the current 3 seed run. Fixed-grid mass projection improves RMSE from 0.0290 vanilla to 0.0116 projected while driving mass error to numerical precision. Heat and Burgers PDE studies preserve enforced mass and bounds to numerical precision, and Allen-Cahn enforces bounds to numerical precision.
+- Added a root `README.md` summarizing the goal, current status, result artifacts, and reproduction commands.
 
 ## Codebase Map
 
@@ -98,6 +99,7 @@ Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
 
 Spec and docs
+- `README.md`: public project overview, current status, result snapshot, and reproduction commands.
 - `PLAN.md`: living specification, invariants, milestones, and scope.
 - `pinn_proposal.tex`: updated proposal narrative aligned with StructPINN.
 - `refs.bib`: verified bibliography for the current proposal references. Future additions should pass the same source gate.
