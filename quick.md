@@ -2,7 +2,7 @@
 
 ## Summary
 
-StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid field correction benchmarks including a heat-style integration. Projected benchmark paths record statuses during training and evaluation.
+StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, general sparse linear-QP inequality projection with active-set and primal-dual backends, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid field correction benchmarks including a heat-style integration. Projected benchmark paths record statuses during training and evaluation.
 
 ## Current Status
 
@@ -18,8 +18,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes `DenseLinearQPConstraint`, which projects onto small dense linear equality and inequality systems by exhaustive active-set enumeration.
 - M6 now includes sparse equality KKT systems through `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint`.
 - M6 now includes `SparseBoxAffineConstraint`, an iterative sparse backend for `{A z = b, lower <= z <= upper}`.
+- M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
 - The field benchmark now includes a heat-style fixed-grid integration that trains through the sparse bounded projection at larger grid size.
-- Remaining M6 work: more general sparse inequality backends, larger PDE integrations, and performance engineering.
+- Remaining M6 work: larger PDE integrations and performance engineering.
 
 ## Open Questions
 
@@ -38,6 +39,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Added `DenseLinearQPConstraint` for small dense linear-QP projections.
 - Added `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint` for sparse equality KKT solves and VJPs.
 - Added `SparseBoxAffineConstraint` for iterative sparse projection onto affine constraints with box inequalities.
+- Added `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint` for general sparse linear equality and inequality projections.
 - Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
 - Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
 
@@ -49,6 +51,7 @@ Package source (`src/`)
 - `src/affine.jl`: `AffineConstraint` and `DiagonalWeightedAffineConstraint`, with rank checks and VJPs.
 - `src/sparse_kkt.jl`: sparse KKT equality projection and weighted sparse KKT projection.
 - `src/sparse_box_affine.jl`: iterative sparse box-affine projection with active-set VJP.
+- `src/sparse_qp.jl`: general sparse linear-QP projections with active-set and primal-dual backends.
 - `src/box.jl`: `BoxConstraint`, componentwise clamp projection, and active-set VJP.
 - `src/nonlinear.jl`: `NonlinearConstraint`, toy constraints, Newton KKT solve, and implicit VJP.
 - `src/simplex.jl`: `WeightedSimplexConstraint`, projection onto `{z >= 0, weights' z = mass}`, and active-set VJP.
@@ -62,6 +65,7 @@ Tests (`test/`)
 - `test/test_weighted_affine.jl`: weighted affine projection, VJP, Zygote, and rank-failure checks.
 - `test/test_sparse_kkt.jl`: sparse KKT projection, weighted sparse KKT projection, VJP, Zygote, and rank-failure checks.
 - `test/test_sparse_box_affine.jl`: sparse box-affine projection, Dykstra convergence, VJP, Zygote, and infeasible checks.
+- `test/test_sparse_qp.jl`: general sparse linear-QP projection, active-set and primal-dual agreement, finite-difference VJP checks, Zygote, kink, infeasible, rank-failure, and larger sparse checks.
 - `test/test_box.jl`: box projection, outside-clamp VJP, exact-bound kink, and infeasible-bound checks.
 - `test/test_nonlinear.jl`: nonlinear KKT regular and failure-status cases.
 - `test/test_m3.jl`: nonlinear implicit-diff VJP checked against a ForwardDiff oracle.

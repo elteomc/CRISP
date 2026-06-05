@@ -25,6 +25,7 @@ export ProjectionResult, issuccess
 export AffineConstraint, DiagonalWeightedAffineConstraint
 export SparseAffineConstraint, SparseDiagonalWeightedAffineConstraint
 export SparseBoxAffineConstraint
+export SparseLinearQPActiveSetConstraint, SparseLinearQPPrimalDualConstraint
 export NonlinearConstraint, BoxConstraint
 export WeightedSimplexConstraint, BoundedWeightedSimplexConstraint
 export DenseLinearQPConstraint
@@ -35,6 +36,7 @@ include("projection_result.jl")
 include("affine.jl")
 include("sparse_kkt.jl")
 include("sparse_box_affine.jl")
+include("sparse_qp.jl")
 include("nonlinear.jl")
 include("box.jl")
 include("simplex.jl")
