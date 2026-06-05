@@ -1,10 +1,8 @@
-% refs.bib for pinn_proposal.tex (milestone M0).
-% Bibliographic data drafted for the build. Per PLAN.md Section 11 the DOIs,
-% arXiv ids, and especially the PCFM entry still need source verification before
-% they are relied on. Items flagged "(verify)" are not yet confirmed.
+% refs.bib for pinn_proposal.tex.
+% Verified 2026-06-05 against primary sources and official documentation.
 
 @article{raissi2019,
-  author  = {Raissi, M. and Perdikaris, P. and Karniadakis, G. E.},
+  author  = {Raissi, Maziar and Perdikaris, Paris and Karniadakis, George Em},
   title   = {Physics-informed neural networks: A deep learning framework for
              solving forward and inverse problems involving nonlinear partial
              differential equations},
@@ -17,25 +15,33 @@
 
 @inproceedings{chen2018,
   author    = {Chen, Ricky T. Q. and Rubanova, Yulia and Bettencourt, Jesse and
-               Duvenaud, David},
+               Duvenaud, David K.},
   title     = {Neural Ordinary Differential Equations},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  booktitle = {Advances in Neural Information Processing Systems 31},
   year      = {2018},
-  note      = {arXiv:1806.07366}
+  url       = {https://papers.nips.cc/paper/7892-neural-ordinary-differential-equations},
+  eprint    = {1806.07366},
+  archivePrefix = {arXiv}
 }
 
 @inproceedings{amos2017,
   author    = {Amos, Brandon and Kolter, J. Zico},
   title     = {{OptNet}: Differentiable Optimization as a Layer in Neural Networks},
   booktitle = {Proceedings of the 34th International Conference on Machine
-               Learning (ICML)},
+               Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {70},
+  pages     = {136--145},
+  publisher = {PMLR},
   year      = {2017},
-  note      = {arXiv:1703.00443}
+  url       = {https://proceedings.mlr.press/v70/amos17a.html},
+  eprint    = {1703.00443},
+  archivePrefix = {arXiv}
 }
 
 @article{lu2021,
-  author  = {Lu, Lu and Pestourie, Raphael and Yao, Wenjie and Wang, Zhicheng
-             and Verdugo, Francesc and Johnson, Steven G.},
+  author  = {Lu, Lu and Pestourie, Rapha{\"e}l and Yao, Wenjie and
+             Wang, Zhicheng and Verdugo, Francesc and Johnson, Steven G.},
   title   = {Physics-informed neural networks with hard constraints for inverse
              design},
   journal = {SIAM Journal on Scientific Computing},
@@ -43,36 +49,78 @@
   number  = {6},
   pages   = {B1105--B1132},
   year    = {2021},
-  note    = {arXiv:2102.04626, DOI 10.1137/21M1397908 (verify)}
+  doi     = {10.1137/21M1397908},
+  eprint  = {2102.04626},
+  archivePrefix = {arXiv}
 }
 
 @article{zubov2021,
-  author  = {Zubov, Kirill and others},
-  title   = {{NeuralPDE}: Automating Physics-Informed Neural Networks (PINNs)
+  author  = {Zubov, Kirill and McCarthy, Zoe and Ma, Yingbo and Calisto,
+             Francesco and Pagliarino, Valerio and Azeglio, Simone and
+             Bottero, Luca and Luj{\'a}n, Emmanuel and Sulzer, Valentin and
+             Bharambe, Ashutosh and Vinchhi, Nand and Balakrishnan, Kaushik and
+             Upadhyay, Devesh and Rackauckas, Chris},
+  title   = {{NeuralPDE}: Automating {Physics-Informed Neural Networks} ({PINNs})
              with Error Approximations},
   journal = {arXiv preprint arXiv:2107.09443},
-  year    = {2021}
+  year    = {2021},
+  doi     = {10.48550/arXiv.2107.09443}
 }
 
 @article{rackauckas2019,
-  author  = {Rackauckas, Christopher and others},
-  title   = {{DiffEqFlux.jl} -- A Julia Library for Neural Differential Equations},
+  author  = {Rackauckas, Chris and Innes, Mike and Ma, Yingbo and Bettencourt,
+             Jesse and White, Lyndon and Dixit, Vaibhav},
+  title   = {{DiffEqFlux.jl}: A {Julia} Library for Neural Differential Equations},
   journal = {arXiv preprint arXiv:1902.02376},
-  year    = {2019}
+  year    = {2019},
+  doi     = {10.48550/arXiv.1902.02376}
 }
 
-@article{rackauckas2022,
-  author  = {Rackauckas, Christopher and others},
-  title   = {{ModelingToolkit}: A Composable Graph Transformation System for
-             Equation-Based Modeling},
+@article{rackauckas2021,
+  author  = {Ma, Yingbo and Gowda, Shashi and Anantharaman, Ranjan and Laughman,
+             Chris and Shah, Viral and Rackauckas, Chris},
+  title   = {{ModelingToolkit}: A {Composable Graph Transformation System} for
+             {Equation-Based Modeling}},
   journal = {arXiv preprint arXiv:2103.05244},
   year    = {2021},
-  note    = {(verify year and venue)}
+  doi     = {10.48550/arXiv.2103.05244}
 }
 
-@misc{utkarsh2025,
-  author = {Utkarsh and others},
-  title  = {Physics-Constrained Flow Matching (PCFM)},
-  year   = {2025},
-  note   = {arXiv:2506.04171 (author list and exact title need verification)}
+@article{utkarsh2025,
+  author  = {Utkarsh, Utkarsh and Cai, Pengfei and Edelman, Alan and
+             Gomez-Bombarelli, Rafael and Rackauckas, Christopher Vincent},
+  title   = {{Physics-Constrained Flow Matching}: Sampling Generative Models with
+             Hard Constraints},
+  journal = {arXiv preprint arXiv:2506.04171},
+  year    = {2025},
+  doi     = {10.48550/arXiv.2506.04171},
+  note    = {Accepted to NeurIPS 2025}
+}
+
+@inproceedings{blondel2022,
+  author    = {Blondel, Mathieu and Berthet, Quentin and Cuturi, Marco and
+               Frostig, Roy and Hoyer, Stephan and Llinares-Lopez, Felipe and
+               Pedregosa, Fabian and Vert, Jean-Philippe},
+  title     = {Efficient and Modular Implicit Differentiation},
+  booktitle = {Advances in Neural Information Processing Systems 35},
+  year      = {2022},
+  url       = {https://papers.neurips.cc/paper_files/paper/2022/hash/228b9279ecf9bbafe582406850c57115-Abstract-Conference.html},
+  eprint    = {2105.15183},
+  archivePrefix = {arXiv}
+}
+
+@misc{diffeqcallbacks_docs,
+  author = {{SciML}},
+  title  = {{DiffEqCallbacks.jl} Manifold Projection Documentation},
+  year   = {2026},
+  url    = {https://docs.sciml.ai/DiffEqCallbacks/stable/projection/},
+  note   = {Accessed 2026-06-05}
+}
+
+@misc{implicitdifferentiation_docs,
+  author = {{JuliaDecisionFocusedLearning}},
+  title  = {{ImplicitDifferentiation.jl} Documentation},
+  year   = {2026},
+  url    = {https://juliadecisionfocusedlearning.github.io/ImplicitDifferentiation.jl/stable/},
+  note   = {Accessed 2026-06-05}
 }

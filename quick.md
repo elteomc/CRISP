@@ -6,7 +6,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 
 ## Current Status
 
-- M0 is effectively complete: package skeleton, tests, CI, and `refs.bib` exist. The proposal builds after the standard `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` sequence.
+- M0 is complete: package skeleton, tests, CI, verified `refs.bib`, and proposal build path are in place. The proposal builds after the standard `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` sequence.
 - M0.5, M1, M2, M3, M4, M5, and the current M6 inequality slices are implemented and tested at prototype scale.
 - M1 now handles overconstrained affine systems by returning `:singular_constraint` instead of crashing.
 - I10 training status logging is implemented for projected pendulum training. Non-success projection statuses are counted when a `FailureCounter` is supplied and flagged before invalid gradients are used.
@@ -27,7 +27,6 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 
 - Should the next PDE result focus on deeper multi-seed studies, harder initial-condition families, or solver-level optimization beyond the Dykstra path?
 - Should the next paper-style writeup include workflow automation, or focus only on scientific ML constraint layers?
-- Should bibliography verification happen before M5, or in parallel with it?
 - Should the project coordinate with the PCFM group after the first complete M4 or M5 result?
 
 ## Latest Change
@@ -45,6 +44,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
 - Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
 - Added periodic viscous Burgers and Allen-Cahn fixed-grid PDE integrations using the general sparse QP projection paths.
+- Verified the current bibliography against primary sources and official package documentation.
 
 ## Codebase Map
 
@@ -95,4 +95,4 @@ Field benchmark (`benchmarks/field/`)
 Spec and docs
 - `PLAN.md`: living specification, invariants, milestones, and scope.
 - `pinn_proposal.tex`: updated proposal narrative aligned with StructPINN.
-- `refs.bib`: draft bibliography. Entries marked verify still need source verification.
+- `refs.bib`: verified bibliography for the current proposal references. Future additions should pass the same source gate.
