@@ -13,7 +13,7 @@ This module currently implements:
 - `ProjectionResult`, the per-call status object (PLAN.md Section 6, I10).
 - the affine projection layer, M1 (`AffineConstraint`).
 - the nonlinear KKT projection spike, M0.5 (`NonlinearConstraint`).
-- the weighted affine, sparse KKT, box, bounded equality, dense QP, and positivity layers, M6.
+- the weighted affine, sparse KKT, sparse box-affine, dense QP, and positivity layers, M6.
 """
 module StructPINN
 
@@ -24,6 +24,7 @@ using ChainRulesCore
 export ProjectionResult, issuccess
 export AffineConstraint, DiagonalWeightedAffineConstraint
 export SparseAffineConstraint, SparseDiagonalWeightedAffineConstraint
+export SparseBoxAffineConstraint
 export NonlinearConstraint, BoxConstraint
 export WeightedSimplexConstraint, BoundedWeightedSimplexConstraint
 export DenseLinearQPConstraint
@@ -33,6 +34,7 @@ export circle_constraint, tangential_constraint
 include("projection_result.jl")
 include("affine.jl")
 include("sparse_kkt.jl")
+include("sparse_box_affine.jl")
 include("nonlinear.jl")
 include("box.jl")
 include("simplex.jl")

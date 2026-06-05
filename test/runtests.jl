@@ -49,4 +49,5 @@ end
     include("test_dense_qp.jl")
     include("test_weighted_affine.jl")
     include("test_sparse_kkt.jl")
+    include("test_sparse_box_affine.jl")
 end
