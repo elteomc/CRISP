@@ -21,7 +21,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes `SparseAffineProjectionCache`, `CachedSparseBoxAffineConstraint`, and `WarmStartedSparseBoxAffineConstraint` for repeated sparse projection performance.
 - M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
 - The field benchmark now includes heat, viscous Burgers, and Allen-Cahn fixed-grid integrations that train through sparse projection layers at larger grid sizes.
-- Remaining M6 work: paper-quality result generation and deeper performance studies.
+- Paper-quality pilot artifacts now exist: multi-seed pendulum, fixed-grid field, and larger PDE CSVs plus plots.
+- Remaining M6 work: deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
 
@@ -45,6 +46,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
 - Added periodic viscous Burgers and Allen-Cahn fixed-grid PDE integrations using the general sparse QP projection paths.
 - Verified the current bibliography against primary sources and official package documentation.
+- Added field and PDE plotting scripts, plus a multi-seed larger PDE study.
+- Generated current multi-seed result artifacts. Pendulum projected rollout has zero measured energy drift and lower long-horizon RMSE than vanilla or soft in the current 3 seed run. Fixed-grid mass projection improves RMSE from 0.0290 vanilla to 0.0116 projected while driving mass error to numerical precision. Heat and Burgers PDE studies preserve enforced mass and bounds to numerical precision, and Allen-Cahn enforces bounds to numerical precision.
 
 ## Codebase Map
 
@@ -88,6 +91,8 @@ Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/FieldMass.jl`: fixed-grid supervised, heat, Burgers, and Allen-Cahn field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, sparse bounded, and sparse QP field correction, training, status logging, and metrics.
 - `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, bounded-projected, and sparse-bounded field models.
 - `benchmarks/field/run_pde_integrations.jl`: heat, Burgers, and Allen-Cahn projected PDE smoke benchmark.
+- `benchmarks/field/pde_study.jl`: multi-seed heat, Burgers, and Allen-Cahn sparse projection study writing PDE result CSVs.
+- `benchmarks/field/plots.jl`: field and PDE result plots from study CSVs.
 - `benchmarks/field/profile_sparse_projection.jl`: uncached, cached, and warm-started sparse bounded projection timing and iteration profile.
 - `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
 - `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
