@@ -2,7 +2,7 @@
 
 ## Summary
 
-StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, general sparse linear-QP inequality projection with active-set and primal-dual backends, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid field correction benchmarks including a heat-style integration. Projected benchmark paths record statuses during training and evaluation.
+StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, general sparse linear-QP inequality projection with active-set and primal-dual backends, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid PDE correction benchmarks including heat, viscous Burgers, and Allen-Cahn integrations. Projected benchmark paths record statuses during training and evaluation.
 
 ## Current Status
 
@@ -19,12 +19,12 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes sparse equality KKT systems through `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint`.
 - M6 now includes `SparseBoxAffineConstraint`, an iterative sparse backend for `{A z = b, lower <= z <= upper}`.
 - M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
-- The field benchmark now includes a heat-style fixed-grid integration that trains through the sparse bounded projection at larger grid size.
-- Remaining M6 work: larger PDE integrations and performance engineering.
+- The field benchmark now includes heat, viscous Burgers, and Allen-Cahn fixed-grid integrations that train through sparse projection layers at larger grid sizes.
+- Remaining M6 work: performance engineering and paper-quality result generation.
 
 ## Open Questions
 
-- Should the field benchmark evolve from the supervised fixed-grid surrogate into heat or Burgers next?
+- Should the next PDE result focus on deeper multi-seed studies, harder initial-condition families, or performance profiling?
 - Should the next paper-style writeup include workflow automation, or focus only on scientific ML constraint layers?
 - Should bibliography verification happen before M5, or in parallel with it?
 - Should the project coordinate with the PCFM group after the first complete M4 or M5 result?
@@ -42,6 +42,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Added `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint` for general sparse linear equality and inequality projections.
 - Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
 - Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
+- Added periodic viscous Burgers and Allen-Cahn fixed-grid PDE integrations using the general sparse QP projection paths.
 
 ## Codebase Map
 
@@ -82,10 +83,11 @@ Pendulum benchmark (`benchmarks/pendulum/`)
 - `benchmarks/pendulum/test.jl`: benchmark harness and projected-gradient tests.
 
 Field benchmark (`benchmarks/field/`)
-- `benchmarks/field/FieldMass.jl`: fixed-grid supervised and heat-style field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, and sparse bounded field correction, training, status logging, and metrics.
+- `benchmarks/field/FieldMass.jl`: fixed-grid supervised, heat, Burgers, and Allen-Cahn field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, sparse bounded, and sparse QP field correction, training, status logging, and metrics.
 - `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, bounded-projected, and sparse-bounded field models.
+- `benchmarks/field/run_pde_integrations.jl`: heat, Burgers, and Allen-Cahn projected PDE smoke benchmark.
 - `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
-- `benchmarks/field/test.jl`: field harness, projection, training, metric, and gradient tests.
+- `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
 
 Spec and docs
 - `PLAN.md`: living specification, invariants, milestones, and scope.

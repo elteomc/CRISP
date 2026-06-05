@@ -229,3 +229,77 @@ end
     @test ev.negative_max < 1e-12
     @test ev.upper_max < 1e-12
 end
+
+@testset "M6 Burgers sparse QP PDE integration" begin
+    K = 96
+    rng = MersenneTwister(9)
+    train, x, w = sample_burgers_fields(8, K; rng = rng)
+    test, _, _ = sample_burgers_fields(4, K; rng = rng)
+    @test length(x) == K
+    @test isapprox(sum(w), 1.0, atol = 1e-12)
+    @test all(d -> all(-1.25 .<= d.u .<= 1.25), train)
+    @test all(d -> isapprox(mass(d.u, w), d.mass0, atol = 1e-12), train)
+
+    p0 = init_mlp(nout = K, seed = 10)
+    fc = FailureCounter()
+    p, hist = train!(pp -> sparse_qp_bounded_projected_loss(pp, train, w,
+                                                            -1.25, 1.25,
+                                                            backend = :active_set,
+                                                            fc = fc),
+                     p0, steps = 25, lr = 8e-3)
+    @test hist[end] < hist[1]
+    @test get(fc.counts, :success, 0) == length(train) * 25
+
+    ev = evaluate_bounded_model(d -> sparse_qp_bounded_projected_field(p, d.theta, w,
+                                                                       d.mass0,
+                                                                       -1.25, 1.25,
+                                                                       backend = :active_set),
+                                test, w, lower = -1.25, upper = 1.25)
+    @test all(isfinite, (ev.rmse, ev.mass_max, ev.lower_max, ev.upper_max))
+    @test ev.mass_max < 1e-9
+    @test ev.lower_max < 1e-12
+    @test ev.upper_max < 1e-12
+
+    pred = sparse_qp_bounded_projected_field(p, test[1].theta, w,
+                                             test[1].mass0, -1.25, 1.25,
+                                             backend = :primal_dual)
+    @test abs(mass(pred, w) - test[1].mass0) < 1e-8
+    @test all(-1.25 .<= pred .<= 1.25)
+end
+
+@testset "M6 Allen-Cahn sparse QP PDE integration" begin
+    K = 64
+    rng = MersenneTwister(11)
+    train, x, w = sample_allen_cahn_fields(6, K; rng = rng)
+    test, _, _ = sample_allen_cahn_fields(3, K; rng = rng)
+    @test length(x) == K
+    @test isapprox(sum(w), 1.0, atol = 1e-12)
+    @test all(d -> all(-1.0 .<= d.u .<= 1.0), train)
+
+    p0 = init_mlp(nout = K, seed = 12)
+    fc = FailureCounter()
+    p, hist = train!(pp -> sparse_qp_box_projected_loss(pp, train,
+                                                        -1.0, 1.0,
+                                                        backend = :active_set,
+                                                        fc = fc),
+                     p0, steps = 25, lr = 8e-3)
+    @test hist[end] < hist[1]
+    @test get(fc.counts, :success, 0) == length(train) * 25
+
+    ev = evaluate_bounded_model(d -> sparse_qp_box_projected_field(p, d.theta,
+                                                                   -1.0, 1.0,
+                                                                   backend = :active_set),
+                                test, w, lower = -1.0, upper = 1.0)
+    @test all(isfinite, (ev.rmse, ev.lower_max, ev.upper_max))
+    @test ev.lower_max < 1e-12
+    @test ev.upper_max < 1e-12
+    for d in test
+        pred = sparse_qp_box_projected_field(p, d.theta, -1.0, 1.0,
+                                             backend = :active_set)
+        @test all(-1.0 .<= pred .<= 1.0)
+    end
+
+    primal = sparse_qp_box_projected_field(p, test[1].theta, -1.0, 1.0,
+                                           backend = :primal_dual)
+    @test all(-1.0 .<= primal .<= 1.0)
+end

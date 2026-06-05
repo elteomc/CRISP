@@ -8,11 +8,12 @@ the loss is evaluated.
 """
 module FieldMass
 
-using LinearAlgebra, Random, Statistics, Zygote, StructPINN
+using LinearAlgebra, Random, SparseArrays, Statistics, Zygote, StructPINN
 
 export FailureCounter, record!,
-       grid, trapezoid_weights, mass, sample_fields,
-       heat_field, sample_heat_fields,
+       grid, periodic_grid, trapezoid_weights, periodic_weights, mass, sample_fields,
+       heat_field, sample_heat_fields, burgers_field, sample_burgers_fields,
+       allen_cahn_field, sample_allen_cahn_fields,
        init_mlp, field_model, vanilla_loss, soft_loss,
        mass_constraint, weighted_mass_constraint,
        projected_field, projected_loss, weighted_projected_field, weighted_projected_loss,
@@ -21,7 +22,11 @@ export FailureCounter, record!,
        bounded_mass_constraint, bounded_projected_field, bounded_projected_loss,
        sparse_bounded_mass_constraint,
        sparse_bounded_projected_field, sparse_bounded_projected_loss,
-       train!, field_rmse, mass_violation, evaluate_model
+       sparse_qp_box_constraint, sparse_qp_bounded_mass_constraint,
+       sparse_qp_box_projected_field, sparse_qp_box_projected_loss,
+       sparse_qp_bounded_projected_field, sparse_qp_bounded_projected_loss,
+       train!, field_rmse, mass_violation, lower_violation, upper_violation,
+       evaluate_model, evaluate_bounded_model
 
 struct FailureCounter
     counts::Dict{Symbol,Int}
@@ -35,6 +40,8 @@ function record!(fc::FailureCounter, status::Symbol)
 end
 
 grid(K::Int) = collect(range(0.0, 1.0, length = K))
+periodic_grid(K::Int) = collect((0:(K - 1)) ./ K)
+periodic_weights(K::Int) = fill(1.0 / K, K)
 
 function trapezoid_weights(x::AbstractVector)
     K = length(x)
@@ -65,6 +72,63 @@ function heat_field(x, theta; diffusivity = 0.05)
     return 1.0 .+ 0.25 * a .* mode1 .+ 0.15 * b .* mode2
 end
 
+function _rk4_step(u, dt, rhs)
+    k1 = rhs(u)
+    k2 = rhs(u .+ 0.5 .* dt .* k1)
+    k3 = rhs(u .+ 0.5 .* dt .* k2)
+    k4 = rhs(u .+ dt .* k3)
+    return u .+ (dt / 6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4)
+end
+
+function _periodic_laplacian(u, dx)
+    return (circshift(u, -1) .- 2 .* u .+ circshift(u, 1)) ./ dx^2
+end
+
+function _burgers_rhs(u, dx, viscosity)
+    up = circshift(u, -1)
+    f = 0.5 .* u .^ 2
+    fp = 0.5 .* up .^ 2
+    wave = max.(abs.(u), abs.(up))
+    flux_plus = 0.5 .* (f .+ fp) .- 0.5 .* wave .* (up .- u)
+    flux_minus = circshift(flux_plus, 1)
+    return .-(flux_plus .- flux_minus) ./ dx .+
+           viscosity .* _periodic_laplacian(u, dx)
+end
+
+function burgers_field(x, theta; viscosity = 0.02)
+    t, a, b = theta
+    dx = 1.0 / length(x)
+    u = 0.15 * a .+ 0.45 .* sin.(2pi .* x) .+ 0.20 * b .* cos.(4pi .* x)
+    maxspeed = max(maximum(abs.(u)), 1e-6)
+    dtmax = min(1e-3, 0.2 * dx / maxspeed, 0.2 * dx^2 / viscosity)
+    steps = max(1, ceil(Int, t / dtmax))
+    dt = t / steps
+    rhs(v) = _burgers_rhs(v, dx, viscosity)
+    for _ in 1:steps
+        u = _rk4_step(u, dt, rhs)
+    end
+    return u
+end
+
+function _allen_cahn_rhs(u, dx, epsilon)
+    return epsilon^2 .* _periodic_laplacian(u, dx) .+ u .- u .^ 3
+end
+
+function allen_cahn_field(x, theta; epsilon = 0.04)
+    t, a, b = theta
+    dx = 1.0 / length(x)
+    u = 0.20 * a .+ 0.35 * b .* cos.(2pi .* x) .+
+        0.25 .* sin.(2pi .* x)
+    dtmax = min(2e-3, 0.2 * dx^2 / epsilon^2, 0.02)
+    steps = max(1, ceil(Int, t / dtmax))
+    dt = t / steps
+    rhs(v) = _allen_cahn_rhs(v, dx, epsilon)
+    for _ in 1:steps
+        u = _rk4_step(u, dt, rhs)
+    end
+    return u
+end
+
 function sample_fields(N, K; rng = Random.default_rng())
     x = grid(K)
     w = trapezoid_weights(x)
@@ -84,6 +148,30 @@ function sample_heat_fields(N, K; rng = Random.default_rng())
     for _ in 1:N
         theta = [rand(rng), 2 * rand(rng) - 1, 2 * rand(rng) - 1]
         u = heat_field(x, theta)
+        push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
+    end
+    return data, x, w
+end
+
+function sample_burgers_fields(N, K; rng = Random.default_rng())
+    x = periodic_grid(K)
+    w = periodic_weights(K)
+    data = NamedTuple[]
+    for _ in 1:N
+        theta = [0.05 + 0.15 * rand(rng), 2 * rand(rng) - 1, 2 * rand(rng) - 1]
+        u = burgers_field(x, theta)
+        push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
+    end
+    return data, x, w
+end
+
+function sample_allen_cahn_fields(N, K; rng = Random.default_rng())
+    x = periodic_grid(K)
+    w = periodic_weights(K)
+    data = NamedTuple[]
+    for _ in 1:N
+        theta = [0.05 + 0.25 * rand(rng), 2 * rand(rng) - 1, 2 * rand(rng) - 1]
+        u = allen_cahn_field(x, theta)
         push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
     end
     return data, x, w
@@ -131,6 +219,42 @@ sparse_bounded_mass_constraint(w, mass0; lower = 0.0, upper = 2.0) =
     SparseBoxAffineConstraint(reshape(collect(w), 1, length(w)), [mass0],
                               _bound_vector(lower, length(w)),
                               _bound_vector(upper, length(w)))
+
+function _sparse_qp_kind(Aeq, beq, G, h, backend)
+    if backend === :active_set
+        return SparseLinearQPActiveSetConstraint(Aeq, beq, G, h)
+    elseif backend === :primal_dual
+        return SparseLinearQPPrimalDualConstraint(Aeq, beq, G, h)
+    end
+    throw(ArgumentError("unknown sparse QP backend :$(backend)"))
+end
+
+function _box_inequality_system(K, lower, upper)
+    lo = _bound_vector(lower, K)
+    hi = _bound_vector(upper, K)
+    T = promote_type(eltype(lo), eltype(hi), Float64)
+    Isp = spdiagm(0 => ones(T, K))
+    G = [Isp
+         -Isp]
+    h = vcat(T.(hi), .-T.(lo))
+    return G, h
+end
+
+function sparse_qp_box_constraint(K; lower = -1.0, upper = 1.0,
+                                  backend = :active_set)
+    G, h = _box_inequality_system(K, lower, upper)
+    T = eltype(h)
+    return _sparse_qp_kind(spzeros(T, 0, K), zeros(T, 0), G, h, backend)
+end
+
+function sparse_qp_bounded_mass_constraint(w, mass0; lower = -1.0,
+                                           upper = 1.0,
+                                           backend = :active_set)
+    K = length(w)
+    G, h = _box_inequality_system(K, lower, upper)
+    Aeq = reshape(collect(w), 1, K)
+    return _sparse_qp_kind(Aeq, [mass0], G, h, backend)
+end
 
 function _record_projection!(c, pred, fc, failure_policy)
     res = project(c, pred)
@@ -265,6 +389,61 @@ function sparse_bounded_projected_loss(p, data, w, lower, upper;
     return s / length(data)
 end
 
+function sparse_qp_box_projected_field(p, theta, lower, upper;
+                                       backend = :active_set, fc = nothing,
+                                       failure_policy = :error)
+    pred = field_model(p, theta)
+    c = sparse_qp_box_constraint(length(pred), lower = lower, upper = upper,
+                                 backend = backend)
+    Zygote.ignore() do
+        _record_projection!(c, pred, fc, failure_policy)
+    end
+    return correct(c, pred)
+end
+
+function sparse_qp_box_projected_loss(p, data, lower, upper;
+                                      backend = :active_set, fc = nothing,
+                                      failure_policy = :error)
+    s = 0.0
+    for d in data
+        pred = sparse_qp_box_projected_field(p, d.theta, lower, upper,
+                                             backend = backend,
+                                             fc = fc,
+                                             failure_policy = failure_policy)
+        s += mean(abs2, pred .- d.u)
+    end
+    return s / length(data)
+end
+
+function sparse_qp_bounded_projected_field(p, theta, w, mass0, lower, upper;
+                                           backend = :active_set,
+                                           fc = nothing,
+                                           failure_policy = :error)
+    pred = field_model(p, theta)
+    c = sparse_qp_bounded_mass_constraint(w, mass0, lower = lower,
+                                          upper = upper, backend = backend)
+    Zygote.ignore() do
+        _record_projection!(c, pred, fc, failure_policy)
+    end
+    return correct(c, pred)
+end
+
+function sparse_qp_bounded_projected_loss(p, data, w, lower, upper;
+                                          backend = :active_set,
+                                          fc = nothing,
+                                          failure_policy = :error)
+    s = 0.0
+    for d in data
+        pred = sparse_qp_bounded_projected_field(p, d.theta, w, d.mass0,
+                                                 lower, upper,
+                                                 backend = backend,
+                                                 fc = fc,
+                                                 failure_policy = failure_policy)
+        s += mean(abs2, pred .- d.u)
+    end
+    return s / length(data)
+end
+
 _ntmap(f, nts...) = NamedTuple{keys(nts[1])}(map(f, map(values, nts)...))
 
 function train!(lossfn, p; steps = 300, lr = 1e-2, beta1 = 0.9, beta2 = 0.999, eps = 1e-8)
@@ -287,6 +466,7 @@ end
 field_rmse(pred, truth) = sqrt(mean(abs2, pred .- truth))
 mass_violation(pred, d, w) = abs(mass(pred, w) - d.mass0)
 negative_violation(pred) = maximum(max.(.-pred, 0.0))
+lower_violation(pred, lower) = maximum(max.(lower .- pred, 0.0))
 upper_violation(pred, upper) = maximum(max.(pred .- upper, 0.0))
 
 function evaluate_model(predict, data, w; upper = 2.0)
@@ -304,6 +484,24 @@ function evaluate_model(predict, data, w; upper = 2.0)
     return (rmse = mean(rmse), mass_max = maximum(mviol), mass_mean = mean(mviol),
             negative_max = maximum(nviol), negative_mean = mean(nviol),
             upper_max = maximum(uviol), upper_mean = mean(uviol))
+end
+
+function evaluate_bounded_model(predict, data, w; lower = 0.0, upper = 2.0)
+    rmse = Float64[]
+    mviol = Float64[]
+    lviol = Float64[]
+    uviol = Float64[]
+    for d in data
+        pred = predict(d)
+        push!(rmse, field_rmse(pred, d.u))
+        push!(mviol, mass_violation(pred, d, w))
+        push!(lviol, lower_violation(pred, lower))
+        push!(uviol, upper_violation(pred, upper))
+    end
+    return (rmse = mean(rmse), mass_max = maximum(mviol),
+            mass_mean = mean(mviol), lower_max = maximum(lviol),
+            lower_mean = mean(lviol), upper_max = maximum(uviol),
+            upper_mean = mean(uviol))
 end
 
 end # module
