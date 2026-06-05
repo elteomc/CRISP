@@ -2,7 +2,7 @@
 
 ## Summary
 
-StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and a fixed-grid field correction benchmark. Projected benchmark paths record statuses during training and evaluation.
+StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid field correction benchmarks including a heat-style integration. Projected benchmark paths record statuses during training and evaluation.
 
 ## Current Status
 
@@ -17,7 +17,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes `BoundedWeightedSimplexConstraint`, which enforces one weighted equality together with lower and upper bounds.
 - M6 now includes `DenseLinearQPConstraint`, which projects onto small dense linear equality and inequality systems by exhaustive active-set enumeration.
 - M6 now includes sparse equality KKT systems through `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint`.
-- Remaining M6 work: iterative or sparse inequality backends and larger PINN integrations.
+- M6 now includes `SparseBoxAffineConstraint`, an iterative sparse backend for `{A z = b, lower <= z <= upper}`.
+- The field benchmark now includes a heat-style fixed-grid integration that trains through the sparse bounded projection at larger grid size.
+- Remaining M6 work: more general sparse inequality backends, larger PDE integrations, and performance engineering.
 
 ## Open Questions
 
@@ -35,8 +37,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Added `BoundedWeightedSimplexConstraint` for a weighted equality plus finite lower and upper bounds.
 - Added `DenseLinearQPConstraint` for small dense linear-QP projections.
 - Added `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint` for sparse equality KKT solves and VJPs.
+- Added `SparseBoxAffineConstraint` for iterative sparse projection onto affine constraints with box inequalities.
 - Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
-- Integrated the positivity-plus-mass projection and bounded-mass projection into the fixed-grid field benchmark.
+- Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
 
 ## Codebase Map
 
@@ -45,6 +48,7 @@ Package source (`src/`)
 - `src/projection_result.jl`: `ProjectionResult`, the per-call status object that records projection outcomes.
 - `src/affine.jl`: `AffineConstraint` and `DiagonalWeightedAffineConstraint`, with rank checks and VJPs.
 - `src/sparse_kkt.jl`: sparse KKT equality projection and weighted sparse KKT projection.
+- `src/sparse_box_affine.jl`: iterative sparse box-affine projection with active-set VJP.
 - `src/box.jl`: `BoxConstraint`, componentwise clamp projection, and active-set VJP.
 - `src/nonlinear.jl`: `NonlinearConstraint`, toy constraints, Newton KKT solve, and implicit VJP.
 - `src/simplex.jl`: `WeightedSimplexConstraint`, projection onto `{z >= 0, weights' z = mass}`, and active-set VJP.
@@ -57,6 +61,7 @@ Tests (`test/`)
 - `test/test_affine.jl`: affine projection correctness, VJP checks, and rank-failure regressions.
 - `test/test_weighted_affine.jl`: weighted affine projection, VJP, Zygote, and rank-failure checks.
 - `test/test_sparse_kkt.jl`: sparse KKT projection, weighted sparse KKT projection, VJP, Zygote, and rank-failure checks.
+- `test/test_sparse_box_affine.jl`: sparse box-affine projection, Dykstra convergence, VJP, Zygote, and infeasible checks.
 - `test/test_box.jl`: box projection, outside-clamp VJP, exact-bound kink, and infeasible-bound checks.
 - `test/test_nonlinear.jl`: nonlinear KKT regular and failure-status cases.
 - `test/test_m3.jl`: nonlinear implicit-diff VJP checked against a ForwardDiff oracle.
@@ -73,8 +78,8 @@ Pendulum benchmark (`benchmarks/pendulum/`)
 - `benchmarks/pendulum/test.jl`: benchmark harness and projected-gradient tests.
 
 Field benchmark (`benchmarks/field/`)
-- `benchmarks/field/FieldMass.jl`: fixed-grid supervised field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, and bounded-mass field correction, training, status logging, and metrics.
-- `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, and bounded-projected field models.
+- `benchmarks/field/FieldMass.jl`: fixed-grid supervised and heat-style field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, and sparse bounded field correction, training, status logging, and metrics.
+- `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, bounded-projected, and sparse-bounded field models.
 - `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
 - `benchmarks/field/test.jl`: field harness, projection, training, metric, and gradient tests.
 

@@ -36,6 +36,11 @@ println("training bounded mass projected field model ...")
 fc_bounded = FailureCounter()
 pbd, _ = train!(p -> bounded_projected_loss(p, train_data, w, 0.0, 2.0, fc = fc_bounded),
                 p0, steps = STEPS, lr = 1e-2)
+println("training sparse bounded mass projected field model ...")
+fc_sparse_bounded = FailureCounter()
+psbd, _ = train!(p -> sparse_bounded_projected_loss(p, train_data, w, 0.0, 2.0,
+                                                    fc = fc_sparse_bounded),
+                 p0, steps = STEPS, lr = 1e-2)
 
 function report(name, predict)
     ev = evaluate_model(predict, test_data, w)
@@ -51,8 +56,10 @@ report("weighted", d -> weighted_projected_field(pw, d.theta, w, d.mass0))
 report("box", d -> box_projected_field(pb, d.theta, 0.0, 2.0))
 report("positive", d -> positive_projected_field(ppos, d.theta, w, d.mass0))
 report("bounded", d -> bounded_projected_field(pbd, d.theta, w, d.mass0, 0.0, 2.0))
+report("sparse-bounded", d -> sparse_bounded_projected_field(psbd, d.theta, w, d.mass0, 0.0, 2.0))
 println("\nprojected-model training projection statuses: ", fc_train.counts)
 println("weighted-projected training projection statuses: ", fc_weighted.counts)
 println("box-projected training projection statuses: ", fc_box.counts)
 println("positive-projected training projection statuses: ", fc_pos.counts)
 println("bounded-projected training projection statuses: ", fc_bounded.counts)
+println("sparse-bounded-projected training projection statuses: ", fc_sparse_bounded.counts)

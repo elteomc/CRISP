@@ -11,7 +11,7 @@ const OUT = joinpath(@__DIR__, "results")
 
 isdir(OUT) || mkdir(OUT)
 
-models = ["vanilla", "soft", "projected", "weighted", "box", "positive", "bounded"]
+models = ["vanilla", "soft", "projected", "weighted", "box", "positive", "bounded", "sparse_bounded"]
 metrics = (:rmse, :mass_max, :mass_mean, :negative_max, :negative_mean, :upper_max, :upper_mean)
 acc = Dict(m => Dict(k => Float64[] for k in metrics) for m in models)
 status_total = FailureCounter()
@@ -19,6 +19,7 @@ weighted_status_total = FailureCounter()
 box_status_total = FailureCounter()
 positive_status_total = FailureCounter()
 bounded_status_total = FailureCounter()
+sparse_bounded_status_total = FailureCounter()
 
 for seed in SEEDS
     @printf("seed %d: training vanilla, soft, projected ...\n", seed)
@@ -43,6 +44,10 @@ for seed in SEEDS
     fcbd = FailureCounter()
     pbd, _ = train!(p -> bounded_projected_loss(p, train_data, w, 0.0, 2.0, fc = fcbd),
                     p0, steps = STEPS, lr = 1e-2)
+    fcsbd = FailureCounter()
+    psbd, _ = train!(p -> sparse_bounded_projected_loss(p, train_data, w, 0.0, 2.0,
+                                                        fc = fcsbd),
+                     p0, steps = STEPS, lr = 1e-2)
 
     for (s, c) in fc.counts
         status_total.counts[s] = get(status_total.counts, s, 0) + c
@@ -59,6 +64,9 @@ for seed in SEEDS
     for (s, c) in fcbd.counts
         bounded_status_total.counts[s] = get(bounded_status_total.counts, s, 0) + c
     end
+    for (s, c) in fcsbd.counts
+        sparse_bounded_status_total.counts[s] = get(sparse_bounded_status_total.counts, s, 0) + c
+    end
 
     evs = Dict(
         "vanilla" => evaluate_model(d -> field_model(pv, d.theta), test_data, w),
@@ -68,6 +76,7 @@ for seed in SEEDS
         "box" => evaluate_model(d -> box_projected_field(pb, d.theta, 0.0, 2.0), test_data, w),
         "positive" => evaluate_model(d -> positive_projected_field(ppos, d.theta, w, d.mass0), test_data, w),
         "bounded" => evaluate_model(d -> bounded_projected_field(pbd, d.theta, w, d.mass0, 0.0, 2.0), test_data, w),
+        "sparse_bounded" => evaluate_model(d -> sparse_bounded_projected_field(psbd, d.theta, w, d.mass0, 0.0, 2.0), test_data, w),
     )
 
     for m in models, k in metrics
@@ -86,6 +95,7 @@ println("weighted-projected training projection statuses: ", weighted_status_tot
 println("box-projected training projection statuses: ", box_status_total.counts)
 println("positive-projected training projection statuses: ", positive_status_total.counts)
 println("bounded-projected training projection statuses: ", bounded_status_total.counts)
+println("sparse-bounded-projected training projection statuses: ", sparse_bounded_status_total.counts)
 
 open(joinpath(OUT, "results.csv"), "w") do io
     println(io, "model,rmse_mean,rmse_std,massmax_mean,massmax_std,massmean_mean,massmean_std,negmax_mean,negmax_std,negmean_mean,negmean_std,uppermax_mean,uppermax_std,uppermean_mean,uppermean_std")

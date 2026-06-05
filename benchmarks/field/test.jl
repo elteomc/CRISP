@@ -69,6 +69,18 @@ using Test, Random, Zygote
     bounded_pred = bounded_projected_field(p, data[1].theta, w, data[1].mass0, 0.0, 2.0)
     @test all(0.0 .<= bounded_pred .<= 2.0)
     @test abs(mass(bounded_pred, w) - data[1].mass0) < 1e-10
+
+    sparse_bounded_fc = FailureCounter()
+    _, hist_sparse_bounded =
+        train!(pp -> sparse_bounded_projected_loss(pp, data, w, 0.0, 2.0,
+                                                   fc = sparse_bounded_fc),
+               p, steps = 50, lr = 1e-2)
+    @test hist_sparse_bounded[end] < hist_sparse_bounded[1]
+    @test get(sparse_bounded_fc.counts, :success, 0) == length(data) * 50
+    sparse_bounded_pred =
+        sparse_bounded_projected_field(p, data[1].theta, w, data[1].mass0, 0.0, 2.0)
+    @test all(0.0 .<= sparse_bounded_pred .<= 2.0)
+    @test abs(mass(sparse_bounded_pred, w) - data[1].mass0) < 1e-9
 end
 
 @testset "M5 comparison metrics" begin
@@ -91,6 +103,10 @@ end
     fcbd = FailureCounter()
     pbd, _ = train!(p -> bounded_projected_loss(p, train, w, 0.0, 2.0, fc = fcbd),
                     p0, steps = 60, lr = 1e-2)
+    fcsbd = FailureCounter()
+    psbd, _ = train!(p -> sparse_bounded_projected_loss(p, train, w, 0.0, 2.0,
+                                                        fc = fcsbd),
+                     p0, steps = 60, lr = 1e-2)
 
     ev = evaluate_model(d -> field_model(pv, d.theta), test, w)
     es = evaluate_model(d -> field_model(ps, d.theta), test, w)
@@ -99,6 +115,7 @@ end
     eb = evaluate_model(d -> box_projected_field(pb, d.theta, 0.0, 2.0), test, w)
     epos = evaluate_model(d -> positive_projected_field(ppos, d.theta, w, d.mass0), test, w)
     ebd = evaluate_model(d -> bounded_projected_field(pbd, d.theta, w, d.mass0, 0.0, 2.0), test, w)
+    esbd = evaluate_model(d -> sparse_bounded_projected_field(psbd, d.theta, w, d.mass0, 0.0, 2.0), test, w)
 
     @test all(isfinite, (ev.rmse, ev.mass_max, ev.mass_mean, ev.negative_max))
     @test all(isfinite, (es.rmse, es.mass_max, es.mass_mean, es.negative_max))
@@ -107,20 +124,25 @@ end
     @test all(isfinite, (eb.rmse, eb.mass_max, eb.mass_mean, eb.negative_max, eb.upper_max))
     @test all(isfinite, (epos.rmse, epos.mass_max, epos.mass_mean, epos.negative_max))
     @test all(isfinite, (ebd.rmse, ebd.mass_max, ebd.mass_mean, ebd.negative_max, ebd.upper_max))
+    @test all(isfinite, (esbd.rmse, esbd.mass_max, esbd.mass_mean, esbd.negative_max, esbd.upper_max))
     @test ep.mass_max < 1e-10
     @test ew.mass_max < 1e-10
     @test epos.mass_max < 1e-10
     @test ebd.mass_max < 1e-10
+    @test esbd.mass_max < 1e-9
     @test eb.negative_max < 1e-12
     @test eb.upper_max < 1e-12
     @test epos.negative_max < 1e-12
     @test ebd.negative_max < 1e-12
     @test ebd.upper_max < 1e-12
+    @test esbd.negative_max < 1e-12
+    @test esbd.upper_max < 1e-12
     @test get(fc.counts, :success, 0) == length(train) * 60
     @test get(fcw.counts, :success, 0) == length(train) * 60
     @test get(fcb.counts, :success, 0) == length(train) * 60
     @test get(fcp.counts, :success, 0) == length(train) * 60
     @test get(fcbd.counts, :success, 0) == length(train) * 60
+    @test get(fcsbd.counts, :success, 0) == length(train) * 60
 end
 
 @testset "M5 projected gradient vs finite differences" begin
@@ -173,4 +195,37 @@ end
         fd = (Lbounded(perturb(p, f, ci, h)) - Lbounded(perturb(p, f, ci, -h))) / (2h)
         @test isapprox(getfield(gbounded, f)[ci], fd, rtol = 1e-4, atol = 1e-8)
     end
+
+    Lsparse(pp) = sparse_bounded_projected_loss(pp, data, w, 0.0, 2.0)
+    gsparse = Zygote.gradient(Lsparse, p)[1]
+    for (f, ci) in checks
+        fd = (Lsparse(perturb(p, f, ci, h)) - Lsparse(perturb(p, f, ci, -h))) / (2h)
+        @test isapprox(getfield(gsparse, f)[ci], fd, rtol = 1e-4, atol = 1e-8)
+    end
+end
+
+@testset "M6 heat-style sparse inequality integration" begin
+    K = 96
+    rng = MersenneTwister(7)
+    train, x, w = sample_heat_fields(10, K; rng = rng)
+    test, _, _ = sample_heat_fields(5, K; rng = rng)
+    @test length(x) == K
+    @test all(d -> all(0.0 .<= d.u .<= 2.0), train)
+    @test all(d -> isapprox(mass(d.u, w), d.mass0, atol = 1e-12), train)
+
+    p0 = init_mlp(nout = K, seed = 8)
+    fc = FailureCounter()
+    p, hist = train!(pp -> sparse_bounded_projected_loss(pp, train, w, 0.0, 2.0,
+                                                         fc = fc),
+                     p0, steps = 35, lr = 8e-3)
+    @test hist[end] < hist[1]
+    @test get(fc.counts, :success, 0) == length(train) * 35
+
+    ev = evaluate_model(d -> sparse_bounded_projected_field(p, d.theta, w, d.mass0,
+                                                            0.0, 2.0),
+                        test, w)
+    @test all(isfinite, (ev.rmse, ev.mass_max, ev.negative_max, ev.upper_max))
+    @test ev.mass_max < 1e-9
+    @test ev.negative_max < 1e-12
+    @test ev.upper_max < 1e-12
 end

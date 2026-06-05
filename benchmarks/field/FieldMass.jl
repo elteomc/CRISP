@@ -12,12 +12,15 @@ using LinearAlgebra, Random, Statistics, Zygote, StructPINN
 
 export FailureCounter, record!,
        grid, trapezoid_weights, mass, sample_fields,
+       heat_field, sample_heat_fields,
        init_mlp, field_model, vanilla_loss, soft_loss,
        mass_constraint, weighted_mass_constraint,
        projected_field, projected_loss, weighted_projected_field, weighted_projected_loss,
        box_constraint, box_projected_field, box_projected_loss,
        positive_mass_constraint, positive_projected_field, positive_projected_loss,
        bounded_mass_constraint, bounded_projected_field, bounded_projected_loss,
+       sparse_bounded_mass_constraint,
+       sparse_bounded_projected_field, sparse_bounded_projected_loss,
        train!, field_rmse, mass_violation, evaluate_model
 
 struct FailureCounter
@@ -55,6 +58,13 @@ function target_field(x, theta)
     return baseline .+ shape .+ bump
 end
 
+function heat_field(x, theta; diffusivity = 0.05)
+    t, a, b = theta
+    mode1 = exp(-diffusivity * pi^2 * t) .* cos.(pi .* x)
+    mode2 = exp(-4 * diffusivity * pi^2 * t) .* cos.(2pi .* x)
+    return 1.0 .+ 0.25 * a .* mode1 .+ 0.15 * b .* mode2
+end
+
 function sample_fields(N, K; rng = Random.default_rng())
     x = grid(K)
     w = trapezoid_weights(x)
@@ -62,6 +72,18 @@ function sample_fields(N, K; rng = Random.default_rng())
     for _ in 1:N
         theta = 2 .* rand(rng, 3) .- 1
         u = target_field(x, theta)
+        push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
+    end
+    return data, x, w
+end
+
+function sample_heat_fields(N, K; rng = Random.default_rng())
+    x = grid(K)
+    w = trapezoid_weights(x)
+    data = NamedTuple[]
+    for _ in 1:N
+        theta = [rand(rng), 2 * rand(rng) - 1, 2 * rand(rng) - 1]
+        u = heat_field(x, theta)
         push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
     end
     return data, x, w
@@ -105,6 +127,10 @@ bounded_mass_constraint(w, mass0; lower = 0.0, upper = 2.0) =
     BoundedWeightedSimplexConstraint(collect(w), mass0,
                                      _bound_vector(lower, length(w)),
                                      _bound_vector(upper, length(w)))
+sparse_bounded_mass_constraint(w, mass0; lower = 0.0, upper = 2.0) =
+    SparseBoxAffineConstraint(reshape(collect(w), 1, length(w)), [mass0],
+                              _bound_vector(lower, length(w)),
+                              _bound_vector(upper, length(w)))
 
 function _record_projection!(c, pred, fc, failure_policy)
     res = project(c, pred)
@@ -211,6 +237,29 @@ function bounded_projected_loss(p, data, w, lower, upper;
     for d in data
         pred = bounded_projected_field(p, d.theta, w, d.mass0, lower, upper;
                                        fc = fc, failure_policy = failure_policy)
+        s += mean(abs2, pred .- d.u)
+    end
+    return s / length(data)
+end
+
+function sparse_bounded_projected_field(p, theta, w, mass0, lower, upper;
+                                        fc = nothing, failure_policy = :error)
+    pred = field_model(p, theta)
+    c = sparse_bounded_mass_constraint(w, mass0, lower = lower, upper = upper)
+    Zygote.ignore() do
+        _record_projection!(c, pred, fc, failure_policy)
+    end
+    return correct(c, pred)
+end
+
+function sparse_bounded_projected_loss(p, data, w, lower, upper;
+                                       fc = nothing, failure_policy = :error)
+    s = 0.0
+    for d in data
+        pred = sparse_bounded_projected_field(p, d.theta, w, d.mass0,
+                                              lower, upper,
+                                              fc = fc,
+                                              failure_policy = failure_policy)
         s += mean(abs2, pred .- d.u)
     end
     return s / length(data)
