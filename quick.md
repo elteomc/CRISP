@@ -18,13 +18,14 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes `DenseLinearQPConstraint`, which projects onto small dense linear equality and inequality systems by exhaustive active-set enumeration.
 - M6 now includes sparse equality KKT systems through `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint`.
 - M6 now includes `SparseBoxAffineConstraint`, an iterative sparse backend for `{A z = b, lower <= z <= upper}`.
+- M6 now includes `SparseAffineProjectionCache`, `CachedSparseBoxAffineConstraint`, and `WarmStartedSparseBoxAffineConstraint` for repeated sparse projection performance.
 - M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
 - The field benchmark now includes heat, viscous Burgers, and Allen-Cahn fixed-grid integrations that train through sparse projection layers at larger grid sizes.
-- Remaining M6 work: performance engineering and paper-quality result generation.
+- Remaining M6 work: paper-quality result generation and deeper performance studies.
 
 ## Open Questions
 
-- Should the next PDE result focus on deeper multi-seed studies, harder initial-condition families, or performance profiling?
+- Should the next PDE result focus on deeper multi-seed studies, harder initial-condition families, or solver-level optimization beyond the Dykstra path?
 - Should the next paper-style writeup include workflow automation, or focus only on scientific ML constraint layers?
 - Should bibliography verification happen before M5, or in parallel with it?
 - Should the project coordinate with the PCFM group after the first complete M4 or M5 result?
@@ -39,6 +40,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - Added `DenseLinearQPConstraint` for small dense linear-QP projections.
 - Added `SparseAffineConstraint` and `SparseDiagonalWeightedAffineConstraint` for sparse equality KKT solves and VJPs.
 - Added `SparseBoxAffineConstraint` for iterative sparse projection onto affine constraints with box inequalities.
+- Added cached sparse affine projections, cached sparse box-affine projections, and warm active-face starts for repeated Dykstra projections.
 - Added `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint` for general sparse linear equality and inequality projections.
 - Added M6 tests for feasibility, active-set VJP correctness, Zygote integration, active-set kink status, and infeasible constraints.
 - Integrated the sparse bounded projection into the fixed-grid field benchmark and added a heat-style field test.
@@ -50,8 +52,8 @@ Package source (`src/`)
 - `src/StructPINN.jl`: top-level module, exports the public API and includes the layer files.
 - `src/projection_result.jl`: `ProjectionResult`, the per-call status object that records projection outcomes.
 - `src/affine.jl`: `AffineConstraint` and `DiagonalWeightedAffineConstraint`, with rank checks and VJPs.
-- `src/sparse_kkt.jl`: sparse KKT equality projection and weighted sparse KKT projection.
-- `src/sparse_box_affine.jl`: iterative sparse box-affine projection with active-set VJP.
+- `src/sparse_kkt.jl`: sparse KKT equality projection, cached sparse affine projection, and weighted sparse KKT projection.
+- `src/sparse_box_affine.jl`: iterative sparse box-affine projection, cached Dykstra affine steps, warm active-face starts, and active-set VJP.
 - `src/sparse_qp.jl`: general sparse linear-QP projections with active-set and primal-dual backends.
 - `src/box.jl`: `BoxConstraint`, componentwise clamp projection, and active-set VJP.
 - `src/nonlinear.jl`: `NonlinearConstraint`, toy constraints, Newton KKT solve, and implicit VJP.
@@ -64,8 +66,8 @@ Tests (`test/`)
 - `test/runtests.jl`: test entry point, finite-difference helper, and unrolled-Newton oracle.
 - `test/test_affine.jl`: affine projection correctness, VJP checks, and rank-failure regressions.
 - `test/test_weighted_affine.jl`: weighted affine projection, VJP, Zygote, and rank-failure checks.
-- `test/test_sparse_kkt.jl`: sparse KKT projection, weighted sparse KKT projection, VJP, Zygote, and rank-failure checks.
-- `test/test_sparse_box_affine.jl`: sparse box-affine projection, Dykstra convergence, VJP, Zygote, and infeasible checks.
+- `test/test_sparse_kkt.jl`: sparse KKT projection, cached sparse affine projection, weighted sparse KKT projection, VJP, Zygote, and rank-failure checks.
+- `test/test_sparse_box_affine.jl`: sparse box-affine projection, cached projection, warm-started projection, Dykstra convergence, VJP, Zygote, and infeasible checks.
 - `test/test_sparse_qp.jl`: general sparse linear-QP projection, active-set and primal-dual agreement, finite-difference VJP checks, Zygote, kink, infeasible, rank-failure, and larger sparse checks.
 - `test/test_box.jl`: box projection, outside-clamp VJP, exact-bound kink, and infeasible-bound checks.
 - `test/test_nonlinear.jl`: nonlinear KKT regular and failure-status cases.
@@ -86,6 +88,7 @@ Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/FieldMass.jl`: fixed-grid supervised, heat, Burgers, and Allen-Cahn field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, sparse bounded, and sparse QP field correction, training, status logging, and metrics.
 - `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, bounded-projected, and sparse-bounded field models.
 - `benchmarks/field/run_pde_integrations.jl`: heat, Burgers, and Allen-Cahn projected PDE smoke benchmark.
+- `benchmarks/field/profile_sparse_projection.jl`: uncached, cached, and warm-started sparse bounded projection timing and iteration profile.
 - `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
 - `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
 

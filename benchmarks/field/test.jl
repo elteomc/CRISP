@@ -228,6 +228,26 @@ end
     @test ev.mass_max < 1e-9
     @test ev.negative_max < 1e-12
     @test ev.upper_max < 1e-12
+
+    contexts = sparse_bounded_projection_contexts(train, w, 0.0, 2.0,
+                                                  warm_start = true,
+                                                  diagnostic_limit = 32)
+    cached_fc = FailureCounter()
+    pcached, cached_hist =
+        train!(pp -> cached_sparse_bounded_projected_loss(pp, train,
+                                                          contexts,
+                                                          fc = cached_fc),
+               p0, steps = 15, lr = 8e-3)
+    @test cached_hist[end] < cached_hist[1]
+    @test get(cached_fc.counts, :success, 0) == length(train) * 15
+    test_contexts = sparse_bounded_projection_contexts(test, w, 0.0, 2.0,
+                                                       warm_start = true,
+                                                       diagnostic_limit = 32)
+    for (d, ctx) in zip(test, test_contexts)
+        pred = cached_sparse_bounded_projected_field(pcached, d, ctx)
+        @test abs(mass(pred, w) - d.mass0) < 1e-9
+        @test all(0.0 .<= pred .<= 2.0)
+    end
 end
 
 @testset "M6 Burgers sparse QP PDE integration" begin

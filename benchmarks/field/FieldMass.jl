@@ -22,6 +22,9 @@ export FailureCounter, record!,
        bounded_mass_constraint, bounded_projected_field, bounded_projected_loss,
        sparse_bounded_mass_constraint,
        sparse_bounded_projected_field, sparse_bounded_projected_loss,
+       sparse_bounded_projection_contexts,
+       cached_sparse_bounded_projected_field,
+       cached_sparse_bounded_projected_loss,
        sparse_qp_box_constraint, sparse_qp_bounded_mass_constraint,
        sparse_qp_box_projected_field, sparse_qp_box_projected_loss,
        sparse_qp_bounded_projected_field, sparse_qp_bounded_projected_loss,
@@ -384,6 +387,47 @@ function sparse_bounded_projected_loss(p, data, w, lower, upper;
                                               lower, upper,
                                               fc = fc,
                                               failure_policy = failure_policy)
+        s += mean(abs2, pred .- d.u)
+    end
+    return s / length(data)
+end
+
+function sparse_bounded_projection_contexts(data, w, lower, upper;
+                                            warm_start = true,
+                                            diagnostic_limit = 256)
+    return map(data) do d
+        c = sparse_bounded_mass_constraint(w, d.mass0, lower = lower,
+                                           upper = upper)
+        pc = warm_start ?
+            WarmStartedSparseBoxAffineConstraint(c,
+                                                 diagnostic_limit = diagnostic_limit) :
+            CachedSparseBoxAffineConstraint(c,
+                                            diagnostic_limit = diagnostic_limit)
+        (constraint = pc,)
+    end
+end
+
+function cached_sparse_bounded_projected_field(p, d, ctx;
+                                               fc = nothing,
+                                               failure_policy = :error)
+    pred = field_model(p, d.theta)
+    c = ctx.constraint
+    Zygote.ignore() do
+        _record_projection!(c, pred, fc, failure_policy)
+    end
+    return correct(c, pred)
+end
+
+function cached_sparse_bounded_projected_loss(p, data, contexts;
+                                              fc = nothing,
+                                              failure_policy = :error)
+    length(data) == length(contexts) ||
+        throw(DimensionMismatch("data and contexts must have the same length"))
+    s = 0.0
+    for (d, ctx) in zip(data, contexts)
+        pred = cached_sparse_bounded_projected_field(p, d, ctx,
+                                                     fc = fc,
+                                                     failure_policy = failure_policy)
         s += mean(abs2, pred .- d.u)
     end
     return s / length(data)

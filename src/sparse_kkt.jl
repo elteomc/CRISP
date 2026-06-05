@@ -14,6 +14,67 @@ SparseAffineConstraint(A::AbstractMatrix, b::AbstractVector) =
     SparseAffineConstraint(sparse(A), b)
 
 """
+    SparseAffineProjectionCache(A, b)
+
+Cached sparse KKT factorization for repeated Euclidean projections onto
+`{z : A z = b}`. The cache is useful when many right-hand sides share the same
+constraint matrix, for example inside Dykstra iterations.
+"""
+struct SparseAffineProjectionCache{M<:SparseMatrixCSC, V<:AbstractVector, K, F, T<:Real}
+    A::M
+    b::V
+    K::K
+    factor::F
+    smin::T
+    cond_est::T
+    status::Symbol
+end
+
+function _sparse_affine_cache_inputs(Araw, braw)
+    T = promote_type(float(eltype(Araw)), float(eltype(braw)), Float64)
+    A = sparse(T.(Araw))
+    b = T.(braw)
+    size(A, 1) == length(b) || throw(DimensionMismatch("A row count must match length(b)"))
+    all(isfinite, nonzeros(A)) || throw(ArgumentError("A must be finite"))
+    all(isfinite, b) || throw(ArgumentError("b must be finite"))
+    return A, b
+end
+
+function _factor_sparse_kkt(K)
+    F = lu(K, check = false)
+    iszero(F.status) || return nothing
+    return F
+end
+
+function SparseAffineProjectionCache(Araw::AbstractMatrix, braw::AbstractVector;
+                                     tol_rank = 1e-8, cond_max = 1e12,
+                                     diagnostic_limit = 256)
+    A, b = _sparse_affine_cache_inputs(Araw, braw)
+    T = eltype(A)
+    m, n = size(A)
+    smin, rank_ok = _sparse_full_rank_diagnostic(A, m, n, tol_rank, diagnostic_limit)
+    if !rank_ok
+        return SparseAffineProjectionCache(A, b, nothing, nothing, T(smin),
+                                           T(Inf), :singular_constraint)
+    end
+    if m == 0
+        return SparseAffineProjectionCache(A, b, nothing, nothing, T(Inf),
+                                           one(T), :success)
+    end
+    K = _sparse_kkt_matrix(A, nothing)
+    F = _factor_sparse_kkt(K)
+    if F === nothing
+        return SparseAffineProjectionCache(A, b, K, nothing, T(smin),
+                                           T(Inf), :singular_constraint)
+    end
+    cond_est = _sparse_kkt_cond_estimate(K, diagnostic_limit)
+    return SparseAffineProjectionCache(A, b, K, F, T(smin), T(cond_est), :success)
+end
+
+SparseAffineProjectionCache(c::SparseAffineConstraint; kwargs...) =
+    SparseAffineProjectionCache(c.A, c.b; kwargs...)
+
+"""
     SparseDiagonalWeightedAffineConstraint(A, b, weights)
 
 The affine constraint set `{z : A z = b}` under the diagonal weighted objective
@@ -80,8 +141,12 @@ function _sparse_kkt_matrix(A, weights)
 end
 
 function _sparse_kkt_solve(K, rhs)
-    F = lu(K, check = false)
-    iszero(F.status) || return nothing
+    F = _factor_sparse_kkt(K)
+    F === nothing && return nothing
+    return _sparse_factor_solve(F, rhs)
+end
+
+function _sparse_factor_solve(F, rhs)
     sol = F \ rhs
     all(isfinite, sol) || return nothing
     return sol
@@ -144,16 +209,43 @@ function project(c::SparseAffineConstraint, zhat::AbstractVector;
                                           smin, T(Inf), 0)
     end
 
-    K = _sparse_kkt_matrix(A, nothing)
-    sol = _sparse_kkt_solve(K, vcat(zh, b))
+    cache = SparseAffineProjectionCache(A, b, tol_rank = tol_rank,
+                                        cond_max = cond_max,
+                                        diagnostic_limit = diagnostic_limit)
+    cache.status === :singular_constraint &&
+        return _sparse_affine_fail_result(A, b, zh, cache.status,
+                                          cache.smin, cache.cond_est, 0)
+    sol = _sparse_factor_solve(cache.factor, vcat(zh, b))
     if sol === nothing
         return _sparse_affine_fail_result(A, b, zh, :singular_constraint,
                                           smin, T(Inf), 0)
     end
 
-    cond_est = _sparse_kkt_cond_estimate(K, diagnostic_limit)
-    return _sparse_affine_result(A, b, nothing, zh, sol, smin, cond_est,
+    return _sparse_affine_result(A, b, nothing, zh, sol, smin, cache.cond_est,
                                  cond_max, tol_res)
+end
+
+function project(cache::SparseAffineProjectionCache, zhat::AbstractVector;
+                 cond_max = 1e12, tol_res = 1e-8)
+    zh = float.(zhat)
+    T = eltype(zh)
+    A = sparse(T.(cache.A))
+    b = T.(cache.b)
+    m, n = size(A)
+    length(zh) == n || throw(DimensionMismatch("zhat length must match cache width"))
+    if m == 0
+        return ProjectionResult(zh, zeros(T, 0), zero(T), zero(T), zero(T),
+                                1, T(Inf), one(T), :success)
+    end
+    cache.status === :singular_constraint &&
+        return _sparse_affine_fail_result(A, b, zh, cache.status,
+                                          T(cache.smin), T(cache.cond_est), 0)
+    sol = _sparse_factor_solve(cache.factor, vcat(zh, b))
+    sol === nothing &&
+        return _sparse_affine_fail_result(A, b, zh, :singular_constraint,
+                                          T(cache.smin), T(Inf), 0)
+    return _sparse_affine_result(A, b, nothing, zh, sol, T(cache.smin),
+                                 T(cache.cond_est), cond_max, tol_res)
 end
 
 """

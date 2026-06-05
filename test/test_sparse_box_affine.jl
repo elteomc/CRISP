@@ -20,6 +20,35 @@
     @test all(lo .- 1e-10 .<= res.zstar .<= hi .+ 1e-10)
     @test isapprox(dot(w, res.zstar), b[1], atol = 1e-9)
 
+    cached_c = CachedSparseBoxAffineConstraint(c)
+    cached_res = project(cached_c, zhat, tol_feas = 1e-11,
+                         tol_step = 1e-12)
+    @test cached_res.status === :success
+    @test isapprox(cached_res.zstar, res.zstar, atol = 1e-10)
+
+    ws = SparseBoxAffineWorkspace(c)
+    first_ws = project(cached_c, zhat, tol_feas = 1e-11,
+                       tol_step = 1e-12, workspace = ws)
+    @test first_ws.status === :success
+    @test ws.initialized
+    warm_zhat = zhat .+ [0.02, -0.01, 0.01, -0.02]
+    warm = project(cached_c, warm_zhat, tol_feas = 1e-11,
+                   tol_step = 1e-12, workspace = ws)
+    direct_warm = project(cached_c, warm_zhat, tol_feas = 1e-11,
+                          tol_step = 1e-12)
+    @test warm.status === :success
+    @test warm.iterations <= direct_warm.iterations
+    @test isapprox(warm.zstar, direct_warm.zstar, atol = 1e-9)
+
+    warm_c = WarmStartedSparseBoxAffineConstraint(c)
+    warm_c_res = project(warm_c, zhat, tol_feas = 1e-11,
+                         tol_step = 1e-12)
+    warm_c_res2 = project(warm_c, warm_zhat, tol_feas = 1e-11,
+                          tol_step = 1e-12)
+    @test warm_c_res.status === :success
+    @test warm_c_res2.status === :success
+    @test isapprox(warm_c_res2.zstar, direct_warm.zstar, atol = 1e-9)
+
     gbar = [0.7, -1.3, 0.4, 0.2]
     got = vjp(c, res, gbar)
     fd = fd_grad(zh -> dot(gbar, project(c, zh, tol_feas = 1e-11,
@@ -29,6 +58,10 @@
     loss(zh) = sum(abs2, correct(c, zh) .- [0.4, 0.4, 0.4, 0.4])
     gz = Zygote.gradient(loss, zhat)[1]
     @test isapprox(gz, fd_grad(loss, zhat), rtol = 1e-4, atol = 1e-7)
+
+    cached_loss(zh) = sum(abs2, correct(cached_c, zh) .- [0.4, 0.4, 0.4, 0.4])
+    cached_gz = Zygote.gradient(cached_loss, zhat)[1]
+    @test isapprox(cached_gz, fd_grad(cached_loss, zhat), rtol = 1e-4, atol = 1e-7)
 
     interior = project(c, [0.2, 0.3, 0.4, 0.5], tol_feas = 1e-11,
                        tol_step = 1e-12)

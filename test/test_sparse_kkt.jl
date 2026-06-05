@@ -14,6 +14,15 @@
     @test res.stationarity_residual < 1e-12
     @test isapprox(res.zstar, dense_res.zstar; atol = 1e-10)
 
+    cache = SparseAffineProjectionCache(c)
+    cached_res = project(cache, zhat)
+    @test cached_res.status === :success
+    @test isapprox(cached_res.zstar, res.zstar; atol = 1e-12)
+    cached_res2 = project(cache, [-1.0, 0.5, 2.0])
+    direct_res2 = project(c, [-1.0, 0.5, 2.0])
+    @test cached_res2.status === :success
+    @test isapprox(cached_res2.zstar, direct_res2.zstar; atol = 1e-12)
+
     gbar = [0.7, -1.3, 0.4]
     got = vjp(c, res, gbar)
     @test isapprox(got, vjp(dense_c, dense_res, gbar); atol = 1e-10)
@@ -57,6 +66,9 @@
     rank_bad = project(SparseAffineConstraint(sparse([1.0 1.0; 2.0 2.0]),
                                               [1.0, 2.0]), [0.2, 0.3])
     @test rank_bad.status === :singular_constraint
+    rank_bad_cache = SparseAffineProjectionCache(sparse([1.0 1.0; 2.0 2.0]),
+                                                 [1.0, 2.0])
+    @test project(rank_bad_cache, [0.2, 0.3]).status === :singular_constraint
     rank_bad_lu = project(SparseAffineConstraint(sparse([1.0 1.0; 2.0 2.0]),
                                                  [1.0, 2.0]), [0.2, 0.3];
                           diagnostic_limit = 1)

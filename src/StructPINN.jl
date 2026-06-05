@@ -24,7 +24,10 @@ using ChainRulesCore
 export ProjectionResult, issuccess
 export AffineConstraint, DiagonalWeightedAffineConstraint
 export SparseAffineConstraint, SparseDiagonalWeightedAffineConstraint
+export SparseAffineProjectionCache
 export SparseBoxAffineConstraint
+export CachedSparseBoxAffineConstraint, WarmStartedSparseBoxAffineConstraint
+export SparseBoxAffineWorkspace, reset_workspace!
 export SparseLinearQPActiveSetConstraint, SparseLinearQPPrimalDualConstraint
 export NonlinearConstraint, BoxConstraint
 export WeightedSimplexConstraint, BoundedWeightedSimplexConstraint

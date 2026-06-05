@@ -17,6 +17,65 @@ SparseBoxAffineConstraint(A::AbstractMatrix, b::AbstractVector,
                           lower::AbstractVector, upper::AbstractVector) =
     SparseBoxAffineConstraint(sparse(A), b, lower, upper)
 
+"""
+    CachedSparseBoxAffineConstraint(c)
+
+Sparse box-affine constraint with a cached sparse affine KKT factorization for
+the Dykstra affine step. The constraint set is identical to `c`, but repeated
+projection calls avoid rebuilding and refactoring the same equality KKT matrix.
+"""
+struct CachedSparseBoxAffineConstraint{C<:SparseBoxAffineConstraint, AC<:SparseAffineProjectionCache}
+    constraint::C
+    affine_cache::AC
+end
+
+CachedSparseBoxAffineConstraint(c::SparseBoxAffineConstraint; kwargs...) =
+    CachedSparseBoxAffineConstraint(c, SparseAffineProjectionCache(c.A, c.b; kwargs...))
+
+"""
+    SparseBoxAffineWorkspace(n)
+
+Mutable workspace for repeated sparse box-affine projections. It stores the
+last regular active set so the next call can try a validated active-face solve
+before falling back to Dykstra.
+"""
+mutable struct SparseBoxAffineWorkspace
+    lower_active::BitVector
+    upper_active::BitVector
+    active_cache::Any
+    initialized::Bool
+end
+
+SparseBoxAffineWorkspace(n::Integer) =
+    SparseBoxAffineWorkspace(falses(n), falses(n), nothing, false)
+
+SparseBoxAffineWorkspace(c::SparseBoxAffineConstraint) =
+    SparseBoxAffineWorkspace(length(c.lower))
+
+"""
+    WarmStartedSparseBoxAffineConstraint(c)
+
+Cached sparse box-affine constraint with a mutable active-set workspace. Each
+projection first tries the previous regular active face and falls back to
+Dykstra if that face is no longer valid.
+"""
+mutable struct WarmStartedSparseBoxAffineConstraint{CC<:CachedSparseBoxAffineConstraint, WS<:SparseBoxAffineWorkspace}
+    cached::CC
+    workspace::WS
+end
+
+WarmStartedSparseBoxAffineConstraint(c::SparseBoxAffineConstraint; kwargs...) =
+    WarmStartedSparseBoxAffineConstraint(CachedSparseBoxAffineConstraint(c; kwargs...),
+                                         SparseBoxAffineWorkspace(c))
+
+function reset_workspace!(ws::SparseBoxAffineWorkspace)
+    fill!(ws.lower_active, false)
+    fill!(ws.upper_active, false)
+    ws.active_cache = nothing
+    ws.initialized = false
+    return ws
+end
+
 function _sparse_box_affine_inputs(c::SparseBoxAffineConstraint, zhat::AbstractVector)
     A, b, zh, m, n = _sparse_affine_inputs(c.A, c.b, zhat)
     T = eltype(zh)
@@ -70,6 +129,52 @@ function _sparse_box_affine_active_matrix(A, lower_active, upper_active)
     return [A
             L
             U], lower_idx, upper_idx
+end
+
+function _sparse_box_affine_active_rhs(b, lo, hi, lower_active, upper_active)
+    lower_idx = findall(lower_active)
+    upper_idx = findall(upper_active)
+    return vcat(b, .-lo[lower_idx], hi[upper_idx])
+end
+
+function _sparse_box_affine_update_workspace!(ws::SparseBoxAffineWorkspace,
+                                              zstar, lo, hi, tol_active)
+    length(ws.lower_active) == length(zstar) ||
+        throw(DimensionMismatch("workspace length must match projection length"))
+    lower = zstar .<= lo .+ tol_active
+    upper = zstar .>= hi .- tol_active
+    if !ws.initialized || ws.lower_active != lower || ws.upper_active != upper
+        ws.active_cache = nothing
+    end
+    ws.lower_active .= lower
+    ws.upper_active .= upper
+    ws.initialized = true
+    return ws
+end
+
+function _sparse_box_affine_try_warm(A, b, lo, hi, zh, ws, tol_active,
+                                     tol_dual, tol_feas, tol_rank,
+                                     cond_max, diagnostic_limit)
+    ws === nothing && return nothing
+    ws.initialized || return nothing
+    length(ws.lower_active) == length(zh) ||
+        throw(DimensionMismatch("workspace length must match zhat length"))
+    C, _, _ = _sparse_box_affine_active_matrix(A, ws.lower_active,
+                                               ws.upper_active)
+    d = _sparse_box_affine_active_rhs(b, lo, hi, ws.lower_active,
+                                      ws.upper_active)
+    if ws.active_cache === nothing
+        ws.active_cache = SparseAffineProjectionCache(C, d, tol_rank = tol_rank,
+                                                      cond_max = cond_max,
+                                                      diagnostic_limit = diagnostic_limit)
+    end
+    cache = ws.active_cache
+    res = project(cache, zh, cond_max = cond_max, tol_res = tol_feas)
+    res.status === :success || return nothing
+    warm = _sparse_box_affine_result(A, b, lo, hi, zh, res.zstar, 0, true,
+                                     tol_active, tol_dual, tol_feas)
+    warm.status === :success || return nothing
+    return warm
 end
 
 function _sparse_box_affine_multipliers(A, zh, zstar, lower_active, upper_active)
@@ -130,7 +235,9 @@ set is regular and the KKT stationarity residual is checked.
 function project(c::SparseBoxAffineConstraint, zhat::AbstractVector;
                  maxiter = 5000, tol_feas = 1e-9, tol_step = 1e-10,
                  tol_active = 1e-8, tol_dual = 1e-8,
-                 tol_rank = 1e-8, diagnostic_limit = 256)
+                 tol_rank = 1e-8, cond_max = 1e12,
+                 diagnostic_limit = 256, affine_cache = nothing,
+                 workspace = nothing, warm_start = workspace !== nothing)
     A, b, lo, hi, zh, m, n = _sparse_box_affine_inputs(c, zhat)
     T = eltype(zh)
     if any(lo .> hi)
@@ -153,7 +260,23 @@ function project(c::SparseBoxAffineConstraint, zhat::AbstractVector;
                                 box_res.kkt_cond_estimate, box_res.status)
     end
 
-    affine = SparseAffineConstraint(A, b)
+    if warm_start
+        warm = _sparse_box_affine_try_warm(A, b, lo, hi, zh, workspace,
+                                           tol_active, tol_dual, tol_feas,
+                                           tol_rank, cond_max,
+                                           diagnostic_limit)
+        if warm !== nothing
+            _sparse_box_affine_update_workspace!(workspace, warm.zstar, lo,
+                                                 hi, tol_active)
+            return warm
+        end
+    end
+
+    cache = affine_cache === nothing ?
+        SparseAffineProjectionCache(A, b, tol_rank = tol_rank,
+                                    cond_max = cond_max,
+                                    diagnostic_limit = diagnostic_limit) :
+        affine_cache
     x = copy(zh)
     p = zeros(T, n)
     q = zeros(T, n)
@@ -162,8 +285,8 @@ function project(c::SparseBoxAffineConstraint, zhat::AbstractVector;
     for it in 1:maxiter
         iters = it
         y_input = x .+ p
-        affine_res = project(affine, y_input, tol_rank = tol_rank,
-                             tol_res = tol_feas, diagnostic_limit = diagnostic_limit)
+        affine_res = project(cache, y_input, cond_max = cond_max,
+                             tol_res = tol_feas)
         affine_res.status === :success || return ProjectionResult(
             zh, zeros(T, m + 2n), norm(A * zh - b), zero(T), zero(T),
             it, zero(T), T(Inf), affine_res.status)
@@ -182,8 +305,23 @@ function project(c::SparseBoxAffineConstraint, zhat::AbstractVector;
         end
     end
 
-    return _sparse_box_affine_result(A, b, lo, hi, zh, x, iters, converged,
-                                     tol_active, tol_dual, tol_feas)
+    res = _sparse_box_affine_result(A, b, lo, hi, zh, x, iters, converged,
+                                    tol_active, tol_dual, tol_feas)
+    if workspace !== nothing && res.status === :success
+        _sparse_box_affine_update_workspace!(workspace, res.zstar, lo, hi,
+                                             tol_active)
+    end
+    return res
+end
+
+function project(c::CachedSparseBoxAffineConstraint, zhat::AbstractVector; kwargs...)
+    return project(c.constraint, zhat; affine_cache = c.affine_cache, kwargs...)
+end
+
+function project(c::WarmStartedSparseBoxAffineConstraint, zhat::AbstractVector; kwargs...)
+    return project(c.cached.constraint, zhat;
+                   affine_cache = c.cached.affine_cache,
+                   workspace = c.workspace, kwargs...)
 end
 
 """
@@ -215,4 +353,14 @@ function vjp(c::SparseBoxAffineConstraint, res::ProjectionResult, gbar::Abstract
         error("no gradient is claimed for a rank-deficient sparse active set")
     out[free] = tangent.zstar
     return out
+end
+
+function vjp(c::CachedSparseBoxAffineConstraint, res::ProjectionResult,
+             gbar::AbstractVector; kwargs...)
+    return vjp(c.constraint, res, gbar; kwargs...)
+end
+
+function vjp(c::WarmStartedSparseBoxAffineConstraint, res::ProjectionResult,
+             gbar::AbstractVector; kwargs...)
+    return vjp(c.cached.constraint, res, gbar; kwargs...)
 end
