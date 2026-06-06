@@ -35,6 +35,7 @@ The benchmark suite currently includes:
 - Larger fixed-grid heat, Burgers, and Allen-Cahn integrations using sparse projection paths.
 - A DeepONet-style heat-operator helper benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard output paths.
 - Generic DeepONet output-correction adapter helpers for fixed-grid operator surrogates.
+- Projection-frequency and constraint-family ablations for the DeepONet helper path.
 
 The active project direction is to make StructPINN a helper layer for physics-informed DeepONet and operator-surrogate work. The first self-contained helper benchmark now lives under `benchmarks/deeponet`.
 
@@ -74,7 +75,8 @@ DeepONet larger-grid helper, 5 seeds:
 - At K=96, cached full hard correction has RMSE `0.0247`, exact boundary and mass feasibility, and mean training time `2.12` seconds.
 - Evaluation-only full correction improves vanilla predictions while enforcing constraints without retraining.
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for K=32, K=64, and K=96.
-- A report-table generator combines the 10 seed study, larger-grid rows, projection profile, and evaluation-only example into markdown and CSV tables.
+- Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
+- A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
 
@@ -129,6 +131,8 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/report_table.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl

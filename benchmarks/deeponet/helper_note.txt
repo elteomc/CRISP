@@ -18,6 +18,18 @@ Build correction contexts once per sample when the grid and sample metadata are 
 contexts = heat_correction_contexts(data, weights, mode = :full, cached = true)
 loss = context_hard_loss(params, contexts, output_grid)
 
+The synthetic heat helper supports these modes:
+
+mode = :boundary_only
+mode = :mass_only
+mode = :box_only
+mode = :boundary_box
+mode = :full
+
+Use :full for boundary, mass, and box correction together. Use the smaller modes for ablations and diagnostics.
+
+Pure box correction can hit active-bound kinks. In that case the projection status is not success and no training gradient is claimed. In this helper, box-only correction is therefore used as an evaluation ablation unless the branch is known to be regular.
+
 For a trained model, use the same contexts during evaluation.
 
 corrected = context_projected_field(params, context, output_grid)

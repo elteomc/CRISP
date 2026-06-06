@@ -1,7 +1,7 @@
 # DeepONet helper figures from study CSVs.
 # Run after study.jl:
 # julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
-using DelimitedFiles, Plots
+using DelimitedFiles, Plots, Printf
 gr()
 
 const OUT = joinpath(@__DIR__, "results")
@@ -166,6 +166,106 @@ function plot_statuses()
                          xlabels_eval, mean_eval, max_eval)
 end
 
+function metric_from(path, model, metric)
+    data, names = table(path)
+    models = String.(data[:, col(names, "model")])
+    idx = findfirst(==(model), models)
+    idx === nothing && error("missing row $(model)")
+    return Float64(data[idx, col(names, metric)])
+end
+
+function panel_values(values, logscale)
+    vals = Float64.(values)
+    if !logscale
+        ymax = max(maximum(vals), 1e-12)
+        return vals ./ ymax, ymax, 0.0
+    end
+    clipped = max.(vals, eps())
+    logs = log10.(clipped)
+    lo = minimum(logs)
+    hi = maximum(logs)
+    hi <= lo && (hi = lo + 1)
+    return (logs .- lo) ./ (hi - lo), hi, lo
+end
+
+function write_bar_panel(io, x0, y0, width, height, title, labels_plot,
+                         values, logscale)
+    top = y0 + 34
+    bottom = y0 + height - 62
+    left = x0 + 60
+    right = x0 + width - 18
+    plot_height = bottom - top
+    plot_width = right - left
+    scaled, ymax, ymin = panel_values(values, logscale)
+    bar_gap = 8
+    bar_width = plot_width / length(values) - bar_gap
+    println(io, "<text x=\"$(x0 + width / 2)\" y=\"$(y0 + 22)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"18\">$(title)</text>")
+    println(io, "<line x1=\"$left\" y1=\"$bottom\" x2=\"$right\" y2=\"$bottom\" stroke=\"#222\"/>")
+    println(io, "<line x1=\"$left\" y1=\"$top\" x2=\"$left\" y2=\"$bottom\" stroke=\"#222\"/>")
+    for (i, value) in enumerate(values)
+        x = left + (i - 1) * (bar_width + bar_gap) + bar_gap / 2
+        h = plot_height * scaled[i]
+        y = bottom - h
+        println(io, "<rect x=\"$x\" y=\"$y\" width=\"$bar_width\" height=\"$h\" fill=\"#4477aa\"/>")
+        lx = x + bar_width / 2
+        println(io, "<text x=\"$lx\" y=\"$(bottom + 16)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"10\" transform=\"rotate(35 $lx $(bottom + 16))\">$(labels_plot[i])</text>")
+        println(io, "<text x=\"$lx\" y=\"$(y - 4)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"10\">$(@sprintf("%.2g", value))</text>")
+    end
+    if logscale
+        println(io, "<text x=\"$(left - 8)\" y=\"$top\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"10\">1e$(@sprintf("%.1f", ymax))</text>")
+        println(io, "<text x=\"$(left - 8)\" y=\"$bottom\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"10\">1e$(@sprintf("%.1f", ymin))</text>")
+    else
+        println(io, "<text x=\"$(left - 8)\" y=\"$top\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"10\">$(@sprintf("%.2g", ymax))</text>")
+    end
+    return nothing
+end
+
+function plot_report_bundle()
+    result_path = joinpath(OUT, "results.csv")
+    frequency_path = joinpath(OUT, "frequency_ablation.csv")
+    constraint_path = joinpath(OUT, "constraint_ablation.csv")
+    profile_path = joinpath(OUT, "projection_profile.csv")
+    all(isfile, (result_path, frequency_path, constraint_path,
+                 profile_path)) || return nothing
+
+    main_models = ["vanilla", "soft_weak", "eval_only_full",
+                   "hard_full_cached", "soft_plus_hard_full_cached"]
+    main_labels = ["vanilla", "soft", "eval", "hard", "soft+hard"]
+    rmse = [metric_from(result_path, m, "rmse_mean") for m in main_models]
+    mass = [metric_from(result_path, m, "massmax_mean") for m in main_models]
+
+    freq_models = ["no_correction", "eval_only_full", "every_step",
+                   "every_2_steps", "every_5_steps", "every_10_steps"]
+    freq_labels = ["none", "eval", "1", "2", "5", "10"]
+    freq_rmse = [metric_from(frequency_path, m, "rmse_mean")
+                 for m in freq_models]
+
+    constraint_models = ["eval_boundary_only", "eval_box_only",
+                         "eval_mass_only", "eval_boundary_box",
+                         "eval_full"]
+    constraint_labels = ["boundary", "box", "mass", "boundary+box",
+                         "full"]
+    constraint_rmse = [metric_from(constraint_path, m, "rmse_mean")
+                       for m in constraint_models]
+
+    path = joinpath(OUT, "deeponet_report_bundle.svg")
+    open(path, "w") do io
+        println(io, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1500\" height=\"950\" viewBox=\"0 0 1500 950\">")
+        println(io, "<rect width=\"1500\" height=\"950\" fill=\"white\"/>")
+        write_bar_panel(io, 20, 20, 710, 430, "Main helper rows",
+                        main_labels, rmse, false)
+        write_bar_panel(io, 770, 20, 710, 430, "Main mass feasibility",
+                        main_labels, mass, true)
+        write_bar_panel(io, 20, 490, 710, 430, "Projection frequency",
+                        freq_labels, freq_rmse, false)
+        write_bar_panel(io, 770, 490, 710, 430, "Constraint families",
+                        constraint_labels, constraint_rmse, false)
+        println(io, "</svg>")
+    end
+    return nothing
+end
+
 plot_results()
 plot_statuses()
+plot_report_bundle()
 println("wrote DeepONet helper plots to ", OUT)

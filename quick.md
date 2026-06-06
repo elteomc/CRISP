@@ -29,6 +29,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper test passes, including finite-difference checks through the hard-corrected loss.
 - The first 10 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0248`. Cached full hard correction matches the uncached metrics and reduces mean training time from `1.09` to `0.80` seconds in this small run. Full soft-plus-hard also enforces feasibility with RMSE `0.0456`. Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
 - The DeepONet helper now exposes generic adapter helpers so a fixed-grid operator surrogate can supply linear equality rows, per-sample equality values, bounds, and raw output vectors without using the synthetic heat sample type.
+- The DeepONet helper now has projection-frequency and constraint-family ablation scripts. The constraint-family script treats box-only correction as evaluation-only in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - Remaining M6 work: connect these adapter helpers to the summer data interface, deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
@@ -57,6 +58,11 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Generated the large-grid helper artifacts. In the current 5 seed run, K=64 cached full hard correction has RMSE `0.0272` and mean training time `1.15` seconds, while K=96 cached full hard correction has RMSE `0.0247` and mean training time `2.12` seconds. Both enforce boundary and mass constraints to numerical precision.
 - Added `benchmarks/deeponet/report_table.jl`, which writes compact markdown and CSV tables for the helper study, scaling rows, projection profile, and evaluation-only example.
 - Added generic DeepONet output-correction adapter helpers: `boundary_mass_rows`, `operator_correction_context`, `operator_correction_contexts`, and `corrected_output`.
+- Extended DeepONet heat correction modes to support boundary-only, mass-only, box-only, boundary-box, and full boundary-mass-box correction.
+- Added `benchmarks/deeponet/frequency_ablation.jl`, which compares no correction, evaluation-only correction, every-step training correction, and every-N-step training correction.
+- Added `benchmarks/deeponet/constraint_ablation.jl`, which compares boundary-only, box-only, mass-only, boundary-box, and full correction families.
+- Added a mock summer-sample adapter fixture to the DeepONet helper tests so the generic context path is checked without depending on unfinished group code.
+- Updated the DeepONet plots and report tables with ablation rows, status counts, correction norms, and a compact SVG report bundle.
 - Updated the helper note with the summer adapter pattern.
 - Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
 - Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
@@ -129,6 +135,8 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/test.jl`: helper benchmark harness, projection feasibility checks, Zygote gradient checks, training checks, and finite-difference checks through the hard-corrected loss.
 - `benchmarks/deeponet/study.jl`: 10 seed helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`.
 - `benchmarks/deeponet/large_study.jl`: larger-grid helper study for K=64 and K=96.
+- `benchmarks/deeponet/frequency_ablation.jl`: projection-frequency ablation for no correction, evaluation-only correction, every-step correction, and every-N-step correction.
+- `benchmarks/deeponet/constraint_ablation.jl`: constraint-family ablation for boundary-only, box-only, mass-only, boundary-box, and full correction modes.
 - `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
 - `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
 - `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.

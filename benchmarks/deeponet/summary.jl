@@ -104,6 +104,36 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         println(io, "  corrected boundary max: ",
                 fmt(cell(corrected, names, "boundary_max")))
     end
+
+    frequency_path = joinpath(OUT, "frequency_ablation.csv")
+    if isfile(frequency_path)
+        data, names = table(frequency_path)
+        println(io)
+        println(io, "Projection-frequency ablation")
+        for model in ["no_correction", "eval_only_full", "every_step",
+                      "every_2_steps", "every_5_steps", "every_10_steps"]
+            row = row_by(data, names, "model", model)
+            println(io, "  ", model, " RMSE ",
+                    fmt(cell(row, names, "rmse_mean")), " mass ",
+                    fmt(cell(row, names, "massmax_mean")), " train ",
+                    fmt(cell(row, names, "train_seconds_mean")))
+        end
+    end
+
+    constraint_path = joinpath(OUT, "constraint_ablation.csv")
+    if isfile(constraint_path)
+        data, names = table(constraint_path)
+        println(io)
+        println(io, "Constraint-family ablation")
+        for model in ["eval_boundary_only", "eval_box_only",
+                      "eval_mass_only", "eval_boundary_box", "eval_full"]
+            row = row_by(data, names, "model", model)
+            println(io, "  ", model, " RMSE ",
+                    fmt(cell(row, names, "rmse_mean")), " boundary ",
+                    fmt(cell(row, names, "boundarymax_mean")), " mass ",
+                    fmt(cell(row, names, "massmax_mean")))
+        end
+    end
 end
 
 println("wrote summary.txt to ", OUT)

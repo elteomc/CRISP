@@ -16,7 +16,8 @@ export ProjectionLog, record!,
        boundary_mass_rows, operator_correction_context,
        operator_correction_contexts, corrected_output,
        heat_correction_context, heat_correction_contexts,
-       vanilla_loss, soft_loss, hard_projected_field, hard_loss,
+       heat_constraint_mode, vanilla_loss, soft_loss,
+       hard_projected_field, hard_loss, periodic_hard_loss,
        soft_plus_hard_loss, context_projected_field, context_hard_loss,
        context_soft_plus_hard_loss, train!, field_rmse,
        boundary_violation, mass_violation, lower_violation, upper_violation,
@@ -127,7 +128,6 @@ function boundary_mass_rows(w)
 end
 
 function _row_matrix(rows, K)
-    length(rows) > 0 || throw(ArgumentError("at least one row is required"))
     A = spzeros(Float64, length(rows), K)
     for (i, row) in enumerate(rows)
         length(row) == K ||
@@ -142,21 +142,38 @@ end
 
 _resolve_spec(spec, sample) = spec isa Function ? spec(sample) : spec
 
+function _has_bounds(lower, upper)
+    return lower !== nothing || upper !== nothing
+end
+
 function operator_correction_context(K; equality_rows, equality_values,
                                      lower = 0.0, upper = 2.0,
                                      data = nothing, weights = nothing,
                                      cached = true, mode = :operator,
                                      metadata = NamedTuple())
+    rows = collect(equality_rows)
     values = Float64.(collect(equality_values))
-    length(equality_rows) == length(values) ||
+    length(rows) == length(values) ||
         throw(ArgumentError("number of rows must match equality values"))
-    base = SparseBoxAffineConstraint(_row_matrix(equality_rows, K), values,
-                                     _bound_vector(lower, K),
-                                     _bound_vector(upper, K))
-    constraint = cached ? CachedSparseBoxAffineConstraint(base) : base
+    bounds = _has_bounds(lower, upper)
+    if !bounds && isempty(rows)
+        throw(ArgumentError("a correction context needs rows or bounds"))
+    end
+    used_cache = bounds && !isempty(rows) && cached
+    constraint =
+        bounds && isempty(rows) ?
+        BoxConstraint(_bound_vector(lower, K), _bound_vector(upper, K)) :
+        bounds ?
+        begin
+            base = SparseBoxAffineConstraint(_row_matrix(rows, K), values,
+                                             _bound_vector(lower, K),
+                                             _bound_vector(upper, K))
+            used_cache ? CachedSparseBoxAffineConstraint(base) : base
+        end :
+        SparseAffineConstraint(_row_matrix(rows, K), values)
     stored_weights = weights === nothing ? nothing : collect(weights)
     return (data = data, weights = stored_weights, constraint = constraint,
-            mode = mode, cached = cached, metadata = metadata)
+            mode = mode, cached = used_cache, metadata = metadata)
 end
 
 function operator_correction_contexts(data, K; equality_rows,
@@ -201,15 +218,57 @@ function full_heat_constraint(w, left, right, mass0; lower = 0.0,
                                      _bound_vector(upper, K))
 end
 
+function heat_constraint_mode(d, w; lower = 0.0, upper = 2.0,
+                              mode = :full, cached = false)
+    rows = boundary_mass_rows(w)
+    K = length(w)
+    if mode === :boundary_only
+        return operator_correction_context(K, equality_rows = rows[1:2],
+                                           equality_values = [d.left, d.right],
+                                           lower = nothing, upper = nothing,
+                                           data = d, weights = w,
+                                           cached = cached, mode = mode).constraint
+    elseif mode === :mass_only || mode === :integral_only
+        return operator_correction_context(K, equality_rows = rows[3:3],
+                                           equality_values = [d.mass0],
+                                           lower = nothing, upper = nothing,
+                                           data = d, weights = w,
+                                           cached = cached, mode = mode).constraint
+    elseif mode === :box_only
+        return operator_correction_context(K, equality_rows = [],
+                                           equality_values = Float64[],
+                                           lower = lower, upper = upper,
+                                           data = d, weights = w,
+                                           cached = cached, mode = mode).constraint
+    elseif mode === :boundary_box
+        return boundary_box_constraint(K, d.left, d.right,
+                                       lower = lower, upper = upper)
+    elseif mode === :full
+        return full_heat_constraint(w, d.left, d.right, d.mass0,
+                                    lower = lower, upper = upper)
+    else
+        throw(ArgumentError("unknown heat correction mode :$(mode)"))
+    end
+end
+
 function heat_correction_context(d, w; lower = 0.0, upper = 2.0,
                                  mode = :full, cached = true)
-    rows = mode === :boundary_box ? boundary_mass_rows(w)[1:2] :
-        boundary_mass_rows(w)
-    values = mode === :boundary_box ? [d.left, d.right] :
-        [d.left, d.right, d.mass0]
+    all_rows = boundary_mass_rows(w)
+    rows, values, lo, hi =
+        mode === :boundary_only ?
+        (all_rows[1:2], [d.left, d.right], nothing, nothing) :
+        mode === :mass_only || mode === :integral_only ?
+        (all_rows[3:3], [d.mass0], nothing, nothing) :
+        mode === :box_only ?
+        (Vector{Float64}[], Float64[], lower, upper) :
+        mode === :boundary_box ?
+        (all_rows[1:2], [d.left, d.right], lower, upper) :
+        mode === :full ?
+        (all_rows, [d.left, d.right, d.mass0], lower, upper) :
+        throw(ArgumentError("unknown heat correction mode :$(mode)"))
     return operator_correction_context(length(w), equality_rows = rows,
                                        equality_values = values,
-                                       lower = lower, upper = upper,
+                                       lower = lo, upper = hi,
                                        data = d, weights = w,
                                        cached = cached, mode = mode)
 end
@@ -273,11 +332,8 @@ function hard_projected_field(p, d, x, w; lower = 0.0, upper = 2.0,
                               mode = :full)
     pred = deeponet_model(p, d.theta, x)
     c = Zygote.ignore() do
-        mode === :boundary_box ?
-            boundary_box_constraint(length(x), d.left, d.right,
-                                    lower = lower, upper = upper) :
-            full_heat_constraint(w, d.left, d.right, d.mass0,
-                                 lower = lower, upper = upper)
+        heat_constraint_mode(d, w, lower = lower, upper = upper,
+                             mode = mode)
     end
     Zygote.ignore() do
         _record_projection!(c, pred, log, failure_policy)
@@ -297,6 +353,17 @@ function hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
         s += mean(abs2, pred .- d.u)
     end
     return s / length(data)
+end
+
+function periodic_hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
+                            log = nothing, failure_policy = :error,
+                            mode = :full, period = 1, step = 1)
+    if period <= 0 || step % period == 0
+        return hard_loss(p, data, x, w, lower = lower, upper = upper,
+                         log = log, failure_policy = failure_policy,
+                         mode = mode)
+    end
+    return vanilla_loss(p, data, x)
 end
 
 function context_projected_field(p, ctx, x; log = nothing,
@@ -327,11 +394,8 @@ function soft_plus_hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
     for d in data
         raw = deeponet_model(p, d.theta, x)
         c = Zygote.ignore() do
-            mode === :boundary_box ?
-                boundary_box_constraint(length(x), d.left, d.right,
-                                        lower = lower, upper = upper) :
-                full_heat_constraint(w, d.left, d.right, d.mass0,
-                                     lower = lower, upper = upper)
+            heat_constraint_mode(d, w, lower = lower, upper = upper,
+                                 mode = mode)
         end
         Zygote.ignore() do
             _record_projection!(c, raw, log, failure_policy)

@@ -1,7 +1,7 @@
 include("DeepONetHeat.jl")
 using .DeepONetHeat
 using StructPINN: project
-using Test, Random, Zygote
+using Test, Random, Zygote, LinearAlgebra
 
 @testset "DeepONet helper heat benchmark" begin
     K = 24
@@ -51,6 +51,35 @@ using Test, Random, Zygote
     @test upper_violation(hb, 2.0) < 1e-12
     @test get(boundary_only_log.counts, :success, 0) == 1
 
+    mode_checks = (
+        (:boundary_only, true, false, false),
+        (:box_only, false, false, true),
+        (:mass_only, false, true, false),
+        (:integral_only, false, true, false),
+        (:boundary_box, true, false, true),
+        (:full, true, true, true),
+    )
+    for (mode, enforces_boundary, enforces_mass, enforces_box) in mode_checks
+        mode_log = ProjectionLog()
+        pred_mode = hard_projected_field(p, data[1], x, w, log = mode_log,
+                                         mode = mode,
+                                         failure_policy = :continue)
+        if enforces_boundary
+            @test boundary_violation(pred_mode, data[1]) < 1e-9
+        end
+        if enforces_mass
+            @test mass_violation(pred_mode, data[1], w) < 1e-9
+        end
+        if enforces_box
+            @test lower_violation(pred_mode, 0.0) < 1e-12
+            @test upper_violation(pred_mode, 2.0) < 1e-12
+        end
+        @test sum(values(mode_log.counts)) == 1
+        if mode !== :box_only
+            @test get(mode_log.counts, :success, 0) == 1
+        end
+    end
+
     ctx = heat_correction_context(data[1], w, mode = :full,
                                   cached = true)
     ctx_log = ProjectionLog()
@@ -85,6 +114,31 @@ using Test, Random, Zygote
                                      mode = :summer_adapter)
     @test length(adapter_contexts) == length(data)
     @test all(ctx -> ctx.mode === :summer_adapter, adapter_contexts)
+
+    summer_samples =
+        [(features = d.theta, target = d.u, left_bc = d.left,
+          right_bc = d.right, balance = d.mass0) for d in data]
+    summer_contexts =
+        operator_correction_contexts(summer_samples, K,
+                                     equality_rows = rows,
+                                     equality_values =
+                                         s -> [s.left_bc, s.right_bc,
+                                               s.balance],
+                                     lower = 0.0, upper = 2.0,
+                                     weights = w,
+                                     mode = :summer_fixture,
+                                     metadata =
+                                         s -> (target_norm =
+                                                   norm(s.target),))
+    summer_log = ProjectionLog()
+    summer_raw = deeponet_model(p, summer_samples[1].features, x)
+    summer_corrected = corrected_output(summer_raw, summer_contexts[1],
+                                        log = summer_log)
+    @test boundary_violation(summer_corrected, data[1]) < 1e-9
+    @test mass_violation(summer_corrected, data[1], w) < 1e-9
+    @test summer_contexts[1].mode === :summer_fixture
+    @test summer_contexts[1].metadata.target_norm > 0
+    @test get(summer_log.counts, :success, 0) == 1
 
     g = Zygote.gradient(pp -> hard_loss(pp, data, x, w), p)[1]
     @test all(isfinite, g.Wb1)

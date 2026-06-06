@@ -132,6 +132,74 @@ function write_eval_table(io, csvio)
     end
 end
 
+function write_status_table(io, csvio)
+    path = joinpath(OUT, "statuses.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io)
+    println(io, "## Status And Correction Norms")
+    println(io)
+    md_header(io, ["phase", "model", "status", "count",
+                   "correction mean", "correction max"])
+    keep = ("eval_only_full", "hard_full_cached",
+            "soft_plus_hard_full_cached")
+    for i in axes(data, 1)
+        model = String(data[i, col(names, "model")])
+        model in keep || continue
+        row = [String(data[i, col(names, "phase")]), model,
+               String(data[i, col(names, "status")]),
+               Int(data[i, col(names, "count")]),
+               fmt(data[i, col(names, "correction_mean")]),
+               fmt(data[i, col(names, "correction_max")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["status"], row))
+    end
+    println(io)
+    return nothing
+end
+
+function write_frequency_table(io, csvio)
+    path = joinpath(OUT, "frequency_ablation.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Projection Frequency Ablation")
+    println(io)
+    md_header(io, ["model", "RMSE", "mass max", "train seconds"])
+    for model in ["no_correction", "eval_only_full", "every_step",
+                  "every_2_steps", "every_5_steps", "every_10_steps"]
+        row = row_by(data, names, "model", model)
+        out = [model, fmt(row[col(names, "rmse_mean")]),
+               fmt(row[col(names, "massmax_mean")]),
+               fmt(row[col(names, "train_seconds_mean")])]
+        md_line(io, out)
+        csv_line(csvio, vcat(["frequency"], out))
+    end
+    println(io)
+    return nothing
+end
+
+function write_constraint_table(io, csvio)
+    path = joinpath(OUT, "constraint_ablation.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Constraint Family Ablation")
+    println(io)
+    md_header(io, ["model", "RMSE", "boundary max", "mass max"])
+    for model in ["eval_boundary_only", "eval_box_only",
+                  "eval_mass_only", "eval_boundary_box", "eval_full",
+                  "hard_boundary_only", "hard_mass_only",
+                  "hard_boundary_box", "hard_full"]
+        row = row_by(data, names, "model", model)
+        out = [model, fmt(row[col(names, "rmse_mean")]),
+               fmt(row[col(names, "boundarymax_mean")]),
+               fmt(row[col(names, "massmax_mean")])]
+        md_line(io, out)
+        csv_line(csvio, vcat(["constraint"], out))
+    end
+    println(io)
+    return nothing
+end
+
 open(joinpath(OUT, "report_table.csv"), "w") do csvio
     csv_line(csvio, ["section", "field1", "field2", "field3", "field4",
                      "field5", "field6"])
@@ -142,6 +210,9 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_large_table(io, csvio)
         write_profile_table(io, csvio)
         write_eval_table(io, csvio)
+        write_status_table(io, csvio)
+        write_frequency_table(io, csvio)
+        write_constraint_table(io, csvio)
     end
 end
 
