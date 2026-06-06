@@ -79,6 +79,7 @@ DeepONet larger-grid helper, 5 seeds:
 - A shared DeepONet scenario layer records default grids, seeds, steps, and sample counts, with `STRUCTPINN_DEEPONET_*` overrides for larger or smaller runs.
 - A result-run plan records the broader seed-run priorities and gates before larger compute jobs are launched.
 - A soft-sweep summary reports beta values, best-soft rows, and Pareto tradeoffs over RMSE, violation score, and runtime.
+- A tracked results-section draft and report verification script keep the first DeepONet writeup aligned with generated artifacts.
 - A mock summer adapter example shows how geothermal-style sample metadata can feed generic correction contexts without using the synthetic heat sample type.
 - A tracked constraint-selection guide explains when boundary, box, positivity, and balance correction are physically justified.
 - A tracked summer integration checklist records the output shape, grid, metadata, units, bounds, balance quantities, hooks, and logging needed from the group DeepONet code.
@@ -159,6 +160,7 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_decision.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/report_table.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/verify_report_artifacts.jl
 ```
 
 Sparse projection profiling:

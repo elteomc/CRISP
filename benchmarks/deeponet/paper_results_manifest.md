@@ -116,6 +116,18 @@ Supported claims:
 - Soft-penalty rows are evaluated as a Pareto tradeoff over RMSE, violation score, and runtime.
 - Best-soft selection is explicit and tied to the study beta grid.
 
+## Results Section Draft
+
+Artifact:
+
+- `deeponet_results_section.md`
+
+Supported claims:
+
+- The first DeepONet report section is separated from generated artifacts.
+- The section uses only claims supported by the current artifact manifest.
+- The section carries guardrails for pilot scale, synthetic-helper evidence, and correction status validity.
+
 ## Evaluation-Only Correction
 
 Command:
@@ -312,6 +324,20 @@ Supported claims:
 - The DeepONet helper result set is reproducible from scripts.
 - Report-facing tables and figures can be regenerated from CSV artifacts.
 - Status counts and correction-norm warning bands are part of the result surface.
+
+## Report Verification
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/verify_report_artifacts.jl
+```
+
+Supported claims:
+
+- Required DeepONet report artifacts exist before report use.
+- Main exact-feasibility claims are checked against CSV artifacts.
+- Stress diagnostics, guardrail text, and tracked section placeholders are checked.
 
 ## Current Claim Guardrails
 

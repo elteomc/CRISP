@@ -36,6 +36,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper now has a failure-mode figure generator and a tracked paper-results manifest.
 - The DeepONet helper now has a shared scenario layer for grids, seeds, steps, sample counts, and larger-output profiling through K=256 by default.
 - The DeepONet helper now has a broader result-run plan and a soft-sweep Pareto summary for beta, RMSE, violation, and runtime tradeoffs.
+- The DeepONet helper now has a tracked first results-section draft and a report artifact verification gate.
 - The DeepONet helper report tables now collect status counts and correction norms across the main, frequency, constraint-family, and larger-grid status files.
 - The report diagnostics now classify correction norms into warning bands so large successful corrections are not hidden.
 - The DeepONet report bundle SVG now includes main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
@@ -82,6 +83,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/DeepONetScenarios.jl` and `benchmarks/deeponet/scenario_manifest.jl`, which make DeepONet grids, seeds, steps, and sample counts auditable without editing study scripts.
 - Added `benchmarks/deeponet/result_run_plan.jl`, which writes the broader seed-run priorities, gates, and expansion commands.
 - Added `benchmarks/deeponet/soft_sweep_summary.jl`, which writes beta-aware soft-sweep Pareto CSV, markdown, and plot-ready data.
+- Added `benchmarks/deeponet/deeponet_results_section.md`, which drafts the first report-facing DeepONet results section with current claim guardrails.
+- Added `benchmarks/deeponet/verify_report_artifacts.jl`, which checks required report artifacts, feasibility claims, stress diagnostics, and section guardrails.
 - Added a mock summer-sample adapter fixture to the DeepONet helper tests so the generic context path is checked without depending on unfinished group code.
 - Updated the DeepONet plots and report tables with ablation rows, status counts, correction norms, and a compact SVG report bundle.
 - Expanded `benchmarks/deeponet/plots.jl` so `deeponet_report_bundle.svg` includes sparse-decision and status/correction-norm panels.
@@ -175,6 +178,8 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/scenario_manifest.jl`: writes the configured DeepONet run matrix to ignored CSV and markdown artifacts.
 - `benchmarks/deeponet/result_run_plan.jl`: writes the broader DeepONet seed-run plan and expansion gates.
 - `benchmarks/deeponet/soft_sweep_summary.jl`: writes the soft-penalty Pareto table from `results.csv` and the scenario beta grid.
+- `benchmarks/deeponet/deeponet_results_section.md`: tracked draft report section for the current synthetic DeepONet helper results.
+- `benchmarks/deeponet/verify_report_artifacts.jl`: report-facing artifact and claim verification gate.
 - `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
 - `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
 - `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.
