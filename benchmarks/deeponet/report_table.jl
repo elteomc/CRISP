@@ -132,6 +132,61 @@ function write_eval_table(io, csvio)
     end
 end
 
+function write_soft_sweep_table(io, csvio)
+    path = joinpath(OUT, "soft_sweep_pareto.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io)
+    println(io, "## Soft Sweep Pareto")
+    println(io)
+    md_header(io, ["model", "betas", "RMSE", "violation",
+                   "train seconds", "Pareto", "flags"])
+    for i in axes(data, 1)
+        betas = string(data[i, col(names, "beta_boundary")], "/",
+                       data[i, col(names, "beta_mass")], "/",
+                       data[i, col(names, "beta_box")])
+        flags = String[]
+        string(data[i, col(names, "best_rmse")]) == "true" &&
+            push!(flags, "best RMSE")
+        string(data[i, col(names, "best_violation")]) == "true" &&
+            push!(flags, "best violation")
+        string(data[i, col(names, "best_runtime")]) == "true" &&
+            push!(flags, "best runtime")
+        row = [String(data[i, col(names, "model")]), betas,
+               fmt(data[i, col(names, "rmse_mean")]),
+               fmt(data[i, col(names, "violation_score")]),
+               fmt(data[i, col(names, "train_seconds_mean")]),
+               string(data[i, col(names, "pareto_efficient")]),
+               join(flags, " ")]
+        md_line(io, row)
+        csv_line(csvio, vcat(["soft_sweep"], row))
+    end
+    println(io)
+    return nothing
+end
+
+function write_result_run_plan_table(io, csvio)
+    path = joinpath(OUT, "result_run_plan.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Result Run Plan")
+    println(io)
+    md_header(io, ["priority", "batch", "grids", "seeds", "gate",
+                   "purpose"])
+    for i in axes(data, 1)
+        row = [string(data[i, col(names, "priority")]),
+               String(data[i, col(names, "batch")]),
+               string(data[i, col(names, "grids")]),
+               string(data[i, col(names, "seeds")]),
+               String(data[i, col(names, "gate")]),
+               String(data[i, col(names, "purpose")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["result_run_plan"], row))
+    end
+    println(io)
+    return nothing
+end
+
 function write_adapter_table(io, csvio)
     path = joinpath(OUT, "summer_adapter_example.csv")
     isfile(path) || return nothing
@@ -356,6 +411,8 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_large_table(io, csvio)
         write_profile_table(io, csvio)
         write_eval_table(io, csvio)
+        write_soft_sweep_table(io, csvio)
+        write_result_run_plan_table(io, csvio)
         write_adapter_table(io, csvio)
         write_status_table(io, csvio)
         write_frequency_table(io, csvio)

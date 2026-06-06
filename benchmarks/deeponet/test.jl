@@ -18,11 +18,18 @@ using Test, Random, Zygote, LinearAlgebra
     @test profile.repeats > 0
     @test large.grids == (64, 96)
     @test length(scenario_rows()) >= 6
+    run_plan = final_run_plan_rows()
+    @test length(run_plan) >= 6
+    @test run_plan[1].batch == "core_helper_10_seed"
+    @test occursin("1:20", run_plan[4].env)
 
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8,16",
             "STRUCTPINN_DEEPONET_STUDY_SEEDS" => "2:4") do
         @test profile_projection_scenario().grids == (8, 16)
         @test study_scenario().seeds == [2, 3, 4]
+    end
+    withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8 16") do
+        @test profile_projection_scenario().grids == (8, 16)
     end
 end
 

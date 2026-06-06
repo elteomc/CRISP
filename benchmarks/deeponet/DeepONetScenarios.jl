@@ -3,7 +3,7 @@ module DeepONetScenarios
 export deeponet_results_dir, study_scenario, large_study_scenario,
        profile_projection_scenario, frequency_ablation_scenario,
        constraint_ablation_scenario, eval_only_scenario,
-       scenario_rows, scenario_field
+       scenario_rows, final_run_plan_rows, scenario_field
 
 const DEFAULT_SOFT_CONFIGS = [
     (name = "soft_weak", beta_boundary = 1.0, beta_mass = 1.0,
@@ -36,7 +36,8 @@ function parse_int_values(value)
         lo <= hi || throw(ArgumentError("range start must not exceed stop"))
         return collect(lo:hi)
     end
-    return [parse(Int, strip(part)) for part in split(text, ",")]
+    parts = occursin(",", text) ? split(text, ",") : split(text)
+    return [parse(Int, strip(part)) for part in parts if !isempty(strip(part))]
 end
 
 function env_int(name, default)
@@ -183,6 +184,62 @@ function scenario_rows()
          seeds = string(eval_only.seed), steps = eval_only.steps,
          train_samples = eval_only.train_samples,
          test_samples = eval_only.test_samples),
+    ]
+end
+
+function final_run_plan_rows()
+    study = study_scenario()
+    large = large_study_scenario()
+    profile = profile_projection_scenario()
+    return [
+        (priority = 1, batch = "core_helper_10_seed",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl",
+         env = "", grids = string(study.grid),
+         seeds = format_ints(study.seeds), steps = study.steps,
+         train_samples = study.train_samples,
+         test_samples = study.test_samples,
+         gate = "run after scenario manifest and DeepONet tests pass",
+         purpose = "paper-facing main DeepONet helper table"),
+        (priority = 2, batch = "large_helper_5_seed",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl",
+         env = "", grids = format_ints(large.grids),
+         seeds = format_ints(large.seeds), steps = large.steps,
+         train_samples = large.train_samples,
+         test_samples = large.test_samples,
+         gate = "run after profiling says cached contexts remain acceptable",
+         purpose = "larger-grid DeepONet helper scaling table"),
+        (priority = 3, batch = "larger_output_probe",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl",
+         env = "STRUCTPINN_DEEPONET_LARGE_GRIDS=128 192 STRUCTPINN_DEEPONET_LARGE_SEEDS=1:3",
+         grids = "128 192", seeds = "1 2 3", steps = large.steps,
+         train_samples = large.train_samples,
+         test_samples = large.test_samples,
+         gate = "run only if K=256 profiling still leaves sparse internals undecided",
+         purpose = "train-time check before solver-internal sparse work"),
+        (priority = 4, batch = "expanded_main_20_seed",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl",
+         env = "STRUCTPINN_DEEPONET_STUDY_SEEDS=1:20",
+         grids = string(study.grid), seeds = "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20",
+         steps = study.steps, train_samples = study.train_samples,
+         test_samples = study.test_samples,
+         gate = "run only after the core 10 seed table is stable",
+         purpose = "variance reduction for submission-ready claims"),
+        (priority = 5, batch = "expanded_large_10_seed",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl",
+         env = "STRUCTPINN_DEEPONET_LARGE_SEEDS=1:10",
+         grids = format_ints(large.grids),
+         seeds = "1 2 3 4 5 6 7 8 9 10", steps = large.steps,
+         train_samples = large.train_samples,
+         test_samples = large.test_samples,
+         gate = "run only if larger-grid rows become central claims",
+         purpose = "submission-ready larger-grid variance check"),
+        (priority = 6, batch = "profile_before_sparse_work",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl",
+         env = "", grids = format_ints(profile.grids), seeds = "",
+         steps = "", train_samples = profile.samples,
+         test_samples = "",
+         gate = "run before any solver-internal sparse optimization",
+         purpose = "projection overhead decision evidence"),
     ]
 end
 

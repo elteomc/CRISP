@@ -53,6 +53,24 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         println(io)
     end
 
+    soft_path = joinpath(OUT, "soft_sweep_pareto.csv")
+    if isfile(soft_path)
+        data, names = table(soft_path)
+        println(io, "Soft sweep Pareto")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "model")]),
+                    " RMSE ",
+                    fmt(data[i, col(names, "rmse_mean")]),
+                    " violation ",
+                    fmt(data[i, col(names, "violation_score")]),
+                    " train ",
+                    fmt(data[i, col(names, "train_seconds_mean")]),
+                    " pareto ",
+                    string(data[i, col(names, "pareto_efficient")]))
+        end
+        println(io)
+    end
+
     profile_path = joinpath(OUT, "projection_profile.csv")
     if isfile(profile_path)
         data, names = table(profile_path)
@@ -181,6 +199,19 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         for i in axes(data, 1)
             println(io, "  ", string(data[i, col(names, "metric")]),
                     ": ", string(data[i, col(names, "value")]))
+        end
+    end
+
+    plan_path = joinpath(OUT, "result_run_plan.csv")
+    if isfile(plan_path)
+        data, names = table(plan_path)
+        println(io)
+        println(io, "Result run plan")
+        for i in axes(data, 1)
+            println(io, "  priority ",
+                    string(data[i, col(names, "priority")]), " ",
+                    string(data[i, col(names, "batch")]), ": ",
+                    string(data[i, col(names, "purpose")]))
         end
     end
 

@@ -79,6 +79,43 @@ Supported claims:
 - The DeepONet result-suite grids, seeds, steps, and sample counts are auditable before longer runs.
 - Environment overrides can change result-suite size without editing benchmark source files.
 
+## Result Run Plan
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/result_run_plan.jl
+```
+
+Artifacts:
+
+- `result_run_plan.csv`
+- `result_run_plan.md`
+
+Supported claims:
+
+- Broader DeepONet result runs have explicit priority, gates, grids, seeds, and purpose before compute is spent.
+- Current 10 seed and 5 seed helper runs are separated from guarded expansion runs.
+
+## Soft Sweep Summary
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/soft_sweep_summary.jl
+```
+
+Artifacts:
+
+- `soft_sweep_pareto.csv`
+- `soft_sweep_pareto.md`
+- `deeponet_soft_sweep_pareto.svg`
+
+Supported claims:
+
+- Soft-penalty rows are evaluated as a Pareto tradeoff over RMSE, violation score, and runtime.
+- Best-soft selection is explicit and tied to the study beta grid.
+
 ## Evaluation-Only Correction
 
 Command:
@@ -227,6 +264,7 @@ Artifacts:
 Supported claims:
 
 - The frequency and constraint ablations have explicit, reproducible takeaways.
+- The soft sweep has explicit best-RMSE and best-violation rows.
 - The interpretation avoids claiming hard correction always wins.
 
 ## Sparse Decision
@@ -266,6 +304,7 @@ Artifacts:
 - `deeponet_feasibility.png`
 - `deeponet_runtime.svg`
 - `deeponet_correction_norm.svg`
+- `deeponet_soft_sweep_pareto.svg`
 - `deeponet_report_bundle.svg`
 
 Supported claims:

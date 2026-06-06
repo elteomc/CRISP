@@ -77,6 +77,8 @@ DeepONet larger-grid helper, 5 seeds:
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for default grids from K=32 through K=256.
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - A shared DeepONet scenario layer records default grids, seeds, steps, and sample counts, with `STRUCTPINN_DEEPONET_*` overrides for larger or smaller runs.
+- A result-run plan records the broader seed-run priorities and gates before larger compute jobs are launched.
+- A soft-sweep summary reports beta values, best-soft rows, and Pareto tradeoffs over RMSE, violation score, and runtime.
 - A mock summer adapter example shows how geothermal-style sample metadata can feed generic correction contexts without using the synthetic heat sample type.
 - A tracked constraint-selection guide explains when boundary, box, positivity, and balance correction are physically justified.
 - A tracked summer integration checklist records the output shape, grid, metadata, units, bounds, balance quantities, hooks, and logging needed from the group DeepONet code.
@@ -142,8 +144,10 @@ DeepONet helper:
 julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/scenario_manifest.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/result_run_plan.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/soft_sweep_summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summer_adapter_example.jl

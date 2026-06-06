@@ -51,7 +51,7 @@ eval_box = row_by(constraint, cnames, "model", "eval_box_only")
 hard_full = row_by(constraint, cnames, "model", "hard_full")
 hard_boundary_box = row_by(constraint, cnames, "model", "hard_boundary_box")
 
-takeaways = [
+takeaways = Any[
     (id = "frequency_best_rmse",
      text = "Every-step hard correction has the best frequency-ablation RMSE at $(fmt(best_frequency_rmse))."),
     (id = "frequency_cheaper_feasibility",
@@ -69,6 +69,22 @@ takeaways = [
     (id = "constraint_negative_ablation",
      text = "Train-time boundary-box correction is a negative ablation here because it can leave mass uncontrolled and unstable compared with full correction."),
 ]
+
+soft_path = joinpath(OUT, "soft_sweep_pareto.csv")
+if isfile(soft_path)
+    soft, snames = table(soft_path)
+    soft_models = String.(soft[:, col(snames, "model")])
+    soft_rmse = Float64.(soft[:, col(snames, "rmse_mean")])
+    soft_violation = Float64.(soft[:, col(snames, "violation_score")])
+    best_soft_rmse = soft_models[argmin(soft_rmse)]
+    best_soft_violation = soft_models[argmin(soft_violation)]
+    push!(takeaways,
+          (id = "soft_best_rmse",
+           text = "The best soft row by RMSE is $(best_soft_rmse) at $(fmt(minimum(soft_rmse)))."))
+    push!(takeaways,
+          (id = "soft_best_violation",
+           text = "The best soft row by violation is $(best_soft_violation) at $(fmt(minimum(soft_violation))) but it remains far from exact feasibility."))
+end
 
 open(joinpath(OUT, "ablation_interpretation.csv"), "w") do io
     println(io, "id,text")
@@ -102,6 +118,25 @@ open(joinpath(OUT, "ablation_interpretation.md"), "w") do io
     println(io, "Full correction is the clean helper default in the current synthetic heat benchmark because it fixes both boundary and mass. Smaller modes are useful diagnostics, not replacements for physically justified combined correction.")
     println(io)
     println(io, "Box-only correction should remain evaluation-only unless the active branch is regular, because pure box projection can land on active-bound kinks where no training gradient is claimed.")
+    if isfile(soft_path)
+        soft, snames = table(soft_path)
+        println(io)
+        println(io, "## Soft Sweep")
+        println(io)
+        println(io, "| model | RMSE | violation | train seconds | Pareto |")
+        println(io, "| --- | --- | --- | --- | --- |")
+        for i in axes(soft, 1)
+            println(io, "| ", string(soft[i, col(snames, "model")]),
+                    " | ", fmt(soft[i, col(snames, "rmse_mean")]),
+                    " | ", fmt(soft[i, col(snames, "violation_score")]),
+                    " | ", fmt(soft[i, col(snames, "train_seconds_mean")]),
+                    " | ",
+                    string(soft[i, col(snames, "pareto_efficient")]),
+                    " |")
+        end
+        println(io)
+        println(io, "The soft sweep is reported as a tradeoff, not as exact enforcement.")
+    end
 end
 
 println("wrote ablation_interpretation.md and ablation_interpretation.csv to ",

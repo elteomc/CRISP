@@ -5,9 +5,6 @@ using DelimitedFiles, Plots, Printf
 gr()
 
 const OUT = joinpath(@__DIR__, "results")
-const FIG_KW = (size = (1300, 700), bottom_margin = 18Plots.mm,
-                left_margin = 10Plots.mm, right_margin = 4Plots.mm,
-                top_margin = 5Plots.mm)
 
 function table(path)
     data, header = readdlm(path, ',', header = true)
@@ -129,20 +126,26 @@ function plot_results()
     upper = Float64.(data[:, col(names, "uppermax_mean")])
     runtime = Float64.(data[:, col(names, "train_seconds_mean")])
 
-    p1 = bar(xs, rmse; yerror = rmse_err, legend = false,
+    p1 = bar(xs, rmse, yerror = rmse_err, legend = false,
              ylabel = "RMSE", title = "DeepONet helper accuracy",
-             xticks = xtick_spec, xrotation = 25, FIG_KW...)
+             xticks = xtick_spec, xrotation = 25,
+             size = (1300, 700), bottom_margin = 18Plots.mm,
+             left_margin = 10Plots.mm, right_margin = 4Plots.mm,
+             top_margin = 5Plots.mm)
     savefig(p1, joinpath(OUT, "deeponet_rmse.png"))
 
-    p2 = plot(xs, max.(boundary, eps()); yerror = boundary_err,
+    p2 = plot(xs, max.(boundary, eps()), yerror = boundary_err,
               marker = :circle, yscale = :log10, label = "boundary",
               ylabel = "max violation", title = "DeepONet helper feasibility",
-              xticks = xtick_spec, xrotation = 25, FIG_KW...)
-    plot!(p2, xs, max.(mass, eps()); yerror = mass_err,
+              xticks = xtick_spec, xrotation = 25,
+              size = (1300, 700), bottom_margin = 18Plots.mm,
+              left_margin = 10Plots.mm, right_margin = 4Plots.mm,
+              top_margin = 5Plots.mm)
+    plot!(p2, xs, max.(mass, eps()), yerror = mass_err,
           marker = :square, label = "mass")
-    plot!(p2, xs, max.(lower, eps()); marker = :diamond,
+    plot!(p2, xs, max.(lower, eps()), marker = :diamond,
           label = "lower")
-    plot!(p2, xs, max.(upper, eps()); marker = :utriangle,
+    plot!(p2, xs, max.(upper, eps()), marker = :utriangle,
           label = "upper")
     savefig(p2, joinpath(OUT, "deeponet_feasibility.png"))
 
@@ -168,6 +171,65 @@ function plot_statuses()
 
     write_correction_svg(joinpath(OUT, "deeponet_correction_norm.svg"),
                          xlabels_eval, mean_eval, max_eval)
+end
+
+function write_soft_sweep_svg()
+    path = joinpath(OUT, "soft_sweep_pareto.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    models = String.(data[:, col(names, "model")])
+    rmse = Float64.(data[:, col(names, "rmse_mean")])
+    violation = Float64.(data[:, col(names, "violation_score")])
+    train = Float64.(data[:, col(names, "train_seconds_mean")])
+    pareto = string.(data[:, col(names, "pareto_efficient")]) .== "true"
+
+    width = 900
+    height = 620
+    left = 90
+    right = 40
+    top = 70
+    bottom = 120
+    plot_width = width - left - right
+    plot_height = height - top - bottom
+    xmin = minimum(rmse)
+    xmax = maximum(rmse)
+    xmax <= xmin && (xmax = xmin + 1)
+    logs = log10.(max.(violation, eps()))
+    ymin = minimum(logs)
+    ymax = maximum(logs)
+    ymax <= ymin && (ymax = ymin + 1)
+    tmax = max(maximum(train), 1e-12)
+    xscale(v) = left + plot_width * (v - xmin) / (xmax - xmin)
+    yscale(v) = top + plot_height -
+                plot_height * (log10(max(v, eps())) - ymin) /
+                (ymax - ymin)
+    radius(t) = 5 + 12 * t / tmax
+
+    open(joinpath(OUT, "deeponet_soft_sweep_pareto.svg"), "w") do io
+        println(io, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"$width\" height=\"$height\" viewBox=\"0 0 $width $height\">")
+        println(io, "<rect width=\"$width\" height=\"$height\" fill=\"white\"/>")
+        println(io, "<text x=\"$(width / 2)\" y=\"32\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"22\">DeepONet soft sweep Pareto surface</text>")
+        println(io, "<text x=\"$(width / 2)\" y=\"56\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"13\">x is RMSE. y is log violation score. marker size is train time.</text>")
+        println(io, "<line x1=\"$left\" y1=\"$(top + plot_height)\" x2=\"$(left + plot_width)\" y2=\"$(top + plot_height)\" stroke=\"#222\"/>")
+        println(io, "<line x1=\"$left\" y1=\"$top\" x2=\"$left\" y2=\"$(top + plot_height)\" stroke=\"#222\"/>")
+        println(io, "<text x=\"$(left + plot_width / 2)\" y=\"$(height - 30)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">RMSE</text>")
+        println(io, "<text x=\"28\" y=\"$(top + plot_height / 2)\" transform=\"rotate(-90 28 $(top + plot_height / 2))\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">violation score</text>")
+        for i in eachindex(models)
+            x = xscale(rmse[i])
+            y = yscale(violation[i])
+            fill = pareto[i] ? "#2f7d32" : "#8c959f"
+            stroke = pareto[i] ? "#14532d" : "#57606a"
+            r = radius(train[i])
+            println(io, "<circle cx=\"$x\" cy=\"$y\" r=\"$r\" fill=\"$fill\" stroke=\"$stroke\" opacity=\"0.85\"/>")
+            println(io, "<text x=\"$(x + r + 4)\" y=\"$(y + 4)\" font-family=\"sans-serif\" font-size=\"12\">$(models[i])</text>")
+        end
+        println(io, "<text x=\"$(left - 8)\" y=\"$top\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"10\">1e$(@sprintf("%.1f", ymax))</text>")
+        println(io, "<text x=\"$(left - 8)\" y=\"$(top + plot_height)\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"10\">1e$(@sprintf("%.1f", ymin))</text>")
+        println(io, "<text x=\"$left\" y=\"$(top + plot_height + 22)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"10\">$(fmt(xmin))</text>")
+        println(io, "<text x=\"$(left + plot_width)\" y=\"$(top + plot_height + 22)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"10\">$(fmt(xmax))</text>")
+        println(io, "</svg>")
+    end
+    return nothing
 end
 
 function metric_from(path, model, metric)
@@ -331,5 +393,6 @@ end
 
 plot_results()
 plot_statuses()
+write_soft_sweep_svg()
 plot_report_bundle()
 println("wrote DeepONet helper plots to ", OUT)
