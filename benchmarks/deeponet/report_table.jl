@@ -132,6 +132,30 @@ function write_eval_table(io, csvio)
     end
 end
 
+function write_adapter_table(io, csvio)
+    path = joinpath(OUT, "summer_adapter_example.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io)
+    println(io, "## Summer Adapter Example")
+    println(io)
+    md_header(io, ["case", "raw RMSE", "corrected RMSE",
+                   "corrected boundary", "corrected balance",
+                   "status"])
+    for i in axes(data, 1)
+        row = [String(data[i, col(names, "case_id")]),
+               fmt(data[i, col(names, "raw_rmse")]),
+               fmt(data[i, col(names, "corrected_rmse")]),
+               fmt(data[i, col(names, "corrected_boundary")]),
+               fmt(data[i, col(names, "corrected_balance")]),
+               String(data[i, col(names, "status")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["summer_adapter"], row))
+    end
+    println(io)
+    return nothing
+end
+
 function status_row(data, names, i, source)
     label = source
     if "grid" in names
@@ -230,6 +254,44 @@ function write_sparse_decision_table(io, csvio)
     return nothing
 end
 
+function write_stress_table(io, csvio)
+    path = joinpath(OUT, "stress_diagnostics.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Stress Diagnostics")
+    println(io)
+    md_header(io, ["case", "status", "expected", "pass",
+                   "correction norm"])
+    for i in axes(data, 1)
+        row = [String(data[i, col(names, "case")]),
+               String(data[i, col(names, "status")]),
+               String(data[i, col(names, "expected")]),
+               string(data[i, col(names, "pass")]),
+               fmt(data[i, col(names, "correction_norm")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["stress"], row))
+    end
+    println(io)
+    return nothing
+end
+
+function write_interpretation_table(io, csvio)
+    path = joinpath(OUT, "ablation_interpretation.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Ablation Interpretation")
+    println(io)
+    md_header(io, ["id", "takeaway"])
+    for i in axes(data, 1)
+        row = [String(data[i, col(names, "id")]),
+               String(data[i, col(names, "text")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["interpretation"], row))
+    end
+    println(io)
+    return nothing
+end
+
 open(joinpath(OUT, "report_table.csv"), "w") do csvio
     csv_line(csvio, ["section", "field1", "field2", "field3", "field4",
                      "field5", "field6", "field7"])
@@ -240,10 +302,13 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_large_table(io, csvio)
         write_profile_table(io, csvio)
         write_eval_table(io, csvio)
+        write_adapter_table(io, csvio)
         write_status_table(io, csvio)
         write_frequency_table(io, csvio)
         write_constraint_table(io, csvio)
         write_sparse_decision_table(io, csvio)
+        write_stress_table(io, csvio)
+        write_interpretation_table(io, csvio)
     end
 end
 

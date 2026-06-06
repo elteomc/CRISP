@@ -1,7 +1,7 @@
 # Report-facing summary for DeepONet helper artifacts.
 # Run after study, large_study, profile_projection, and eval_only_example.
 # julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
-using DelimitedFiles, Printf
+using DelimitedFiles, Printf, Statistics
 
 const OUT = joinpath(@__DIR__, "results")
 
@@ -105,6 +105,26 @@ open(joinpath(OUT, "summary.txt"), "w") do io
                 fmt(cell(corrected, names, "boundary_max")))
     end
 
+    adapter_path = joinpath(OUT, "summer_adapter_example.csv")
+    if isfile(adapter_path)
+        data, names = table(adapter_path)
+        println(io)
+        println(io, "Summer adapter example")
+        println(io, "  mean raw RMSE: ",
+                fmt(mean(Float64.(data[:, col(names, "raw_rmse")]))))
+        println(io, "  mean corrected RMSE: ",
+                fmt(mean(Float64.(data[:,
+                                      col(names, "corrected_rmse")]))))
+        println(io, "  corrected boundary max: ",
+                fmt(maximum(Float64.(data[:,
+                                         col(names,
+                                             "corrected_boundary")]))))
+        println(io, "  corrected balance max: ",
+                fmt(maximum(Float64.(data[:,
+                                         col(names,
+                                             "corrected_balance")]))))
+    end
+
     frequency_path = joinpath(OUT, "frequency_ablation.csv")
     if isfile(frequency_path)
         data, names = table(frequency_path)
@@ -143,6 +163,31 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         for i in axes(data, 1)
             println(io, "  ", string(data[i, col(names, "metric")]),
                     ": ", string(data[i, col(names, "value")]))
+        end
+    end
+
+    stress_path = joinpath(OUT, "stress_diagnostics.csv")
+    if isfile(stress_path)
+        data, names = table(stress_path)
+        println(io)
+        println(io, "Stress diagnostics")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "case")]),
+                    ": ", string(data[i, col(names, "status")]),
+                    " expected ",
+                    string(data[i, col(names, "expected")]),
+                    " pass ", string(data[i, col(names, "pass")]))
+        end
+    end
+
+    interpretation_path = joinpath(OUT, "ablation_interpretation.csv")
+    if isfile(interpretation_path)
+        data, names = table(interpretation_path)
+        println(io)
+        println(io, "Ablation interpretation")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "id")]),
+                    ": ", string(data[i, col(names, "text")]))
         end
     end
 end
