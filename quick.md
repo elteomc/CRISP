@@ -2,7 +2,7 @@
 
 ## Summary
 
-StructPINN builds differentiable hard-constraint layers for PINNs and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, general sparse linear-QP inequality projection with active-set and primal-dual backends, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, and fixed-grid PDE correction benchmarks including heat, viscous Burgers, and Allen-Cahn integrations. Projected benchmark paths record statuses during training and evaluation.
+StructPINN builds differentiable hard-constraint layers for PINNs, operator surrogates, and related scientific ML systems. Julia is the current implementation vehicle. A layer corrects a raw model output `zhat` onto a constraint set, returns a `ProjectionResult` status object, and differentiates the KKT or active-set optimality conditions rather than solver iterations. The current code implements affine projections, sparse KKT affine projections, diagonal weighted affine projections, sparse weighted affine projections, box projections, nonlinear equality projections, weighted simplex projections for positivity plus normalization, bounded weighted simplex projections for equality plus box constraints, sparse box-affine inequality projection, general sparse linear-QP inequality projection with active-set and primal-dual backends, small dense linear-QP projections, ChainRules integration through `correct`, a fixed-step pendulum neural ODE benchmark, fixed-grid PDE correction benchmarks including heat, viscous Burgers, and Allen-Cahn integrations, and a DeepONet-style heat-operator helper benchmark. Projected benchmark paths record statuses during training and evaluation. The active strategic direction is now to make StructPINN the helper project for physics-informed DeepONet work by correcting DeepONet output fields onto physical constraints.
 
 ## Current Status
 
@@ -22,16 +22,32 @@ StructPINN builds differentiable hard-constraint layers for PINNs and related sc
 - M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
 - The field benchmark now includes heat, viscous Burgers, and Allen-Cahn fixed-grid integrations that train through sparse projection layers at larger grid sizes.
 - Paper-quality pilot artifacts now exist: multi-seed pendulum, fixed-grid field, and larger PDE CSVs plus plots.
+- The old project plan has been archived as `PAST_PLAN.md`.
+- The active `PLAN.md` now prioritizes DeepONet output correction as the summer helper path, while preserving the hard-vs-soft study and sparse scaling paths for a six-month submission-ready target.
+- The `deeponet-helper` branch exists for helper implementation, and `archive/m6-pilot` preserves the pre-helper code snapshot.
+- `benchmarks/deeponet` now implements a small DeepONet-style heat-operator benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard paths.
+- The DeepONet helper test passes, including finite-difference checks through the hard-corrected loss.
+- The first 10 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0248`. Full soft-plus-hard also enforces feasibility with RMSE `0.0456`. Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
 - Remaining M6 work: deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
 
-- Should the next PDE result focus on deeper multi-seed studies, harder initial-condition families, or solver-level optimization beyond the Dykstra path?
-- Should the next paper-style writeup include workflow automation, or focus only on scientific ML constraint layers?
-- Should the project coordinate with the PCFM group after the first complete M4 or M5 result?
+- Should the first DeepONet helper result use the current synthetic heat operator as the report-facing scaffold, or should it move immediately toward the summer geothermal interface once that interface exists?
+- Which constraints are physically justified for the summer geothermal DeepONet case, boundary values, bounds, positivity, integral balance, or a smaller subset?
+- Should sparse projection optimization wait until the DeepONet helper benchmark exposes a real bottleneck?
 
 ## Latest Change
 
+- Archived the original milestone plan as `PAST_PLAN.md`.
+- Replaced `PLAN.md` with a new forward plan that locks StructPINN in as the DeepONet helper project and ranks the remaining conference-oriented alternatives.
+- Added the immediate next direction: create a `benchmarks/deeponet` helper benchmark with vanilla, soft, hard, and soft-plus-hard output correction paths.
+- Created the `archive/m6-pilot` and `deeponet-helper` git branches.
+- Added `benchmarks/deeponet/DeepONetHeat.jl`, `Project.toml`, `test.jl`, and `study.jl`.
+- Expanded the DeepONet helper study to 10 seeds.
+- Added four soft-penalty sweep rows, evaluation-only full correction, boundary-box-only hard correction, full boundary-mass-box hard correction, and soft-plus-hard variants for both correction modes.
+- Added DeepONet helper plots for RMSE, feasibility, runtime, and correction norm.
+- Added `benchmarks/deeponet/helper_note.txt` with the generic integration pattern for the summer DeepONet project.
+- Generated DeepONet helper study CSVs. In the current 10 seed run, full hard correction has RMSE `0.0248` with exact boundary and mass feasibility, full soft-plus-hard has RMSE `0.0456` with exact feasibility, evaluation-only full correction has RMSE `0.0447`, vanilla has RMSE `0.0573`, and the best soft row by RMSE has RMSE `0.0610`.
 - Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
 - Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
 - Added `BoxConstraint` for componentwise bounds and integrated it into the field benchmark as a bounded-output baseline.
@@ -98,8 +114,16 @@ Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
 - `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
 
+DeepONet helper benchmark (`benchmarks/deeponet/`)
+- `benchmarks/deeponet/DeepONetHeat.jl`: DeepONet-style branch/trunk heat-operator model, synthetic heat data, boundary and full boundary-mass-box constraints, vanilla, soft, hard, and soft-plus-hard losses, training, status logging, correction norms, and metrics.
+- `benchmarks/deeponet/test.jl`: helper benchmark harness, projection feasibility checks, Zygote gradient checks, training checks, and finite-difference checks through the hard-corrected loss.
+- `benchmarks/deeponet/study.jl`: 10 seed helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`.
+- `benchmarks/deeponet/plots.jl`: plots helper RMSE, feasibility, runtime, and correction-norm artifacts from study CSVs.
+- `benchmarks/deeponet/helper_note.txt`: short integration note for applying StructPINN to summer DeepONet outputs.
+
 Spec and docs
 - `README.md`: public project overview, current status, result snapshot, and reproduction commands.
-- `PLAN.md`: living specification, invariants, milestones, and scope.
+- `PLAN.md`: active strategy, now centered on DeepONet output correction plus conference-oriented alternatives.
+- `PAST_PLAN.md`: archived original living specification, invariants, milestones, and scope.
 - `pinn_proposal.tex`: updated proposal narrative aligned with StructPINN.
 - `refs.bib`: verified bibliography for the current proposal references. Future additions should pass the same source gate.

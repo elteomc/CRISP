@@ -12,7 +12,7 @@ Manifest.toml
 results/
 *.png
 
-# LaTeX build artifacts (proposal source kept local; build with bibtex)
+# LaTeX build artifacts. Proposal source stays local and builds with bibtex.
 *.pdf
 *.aux
 *.log

@@ -1,0 +1,36 @@
+StructPINN DeepONet helper note
+
+Purpose
+
+This benchmark shows the intended helper pattern for the summer physics-informed DeepONet project. The model can be any operator surrogate that emits a fixed-grid vector. StructPINN only needs that vector and a physically justified constraint object.
+
+Generic pattern
+
+raw = deeponet(params, input_parameters, output_grid)
+constraint = constraint_from_grid_and_sample(output_grid, sample_metadata)
+corrected = correct(constraint, raw)
+loss = supervised_loss(corrected, target)
+
+Useful constraints
+
+Boundary values are usually safe when the PDE case study has fixed Dirichlet values and the output vector includes boundary grid points. They can be represented by affine rows selecting the boundary entries.
+
+Box bounds are useful when the modeled variable has known physical or validity limits. For geothermal temperature fields, bounds should come from units, operating range, or the simulation design domain. They should not hide model error, so correction norms must be reported.
+
+Integral balance is useful only when the discrete model has a justified balance law. The synthetic heat helper uses a mass-like integral because the generated target carries that value as sample metadata. For geothermal cases, use an energy or integral balance only if the numerical model supplies a meaningful target quantity.
+
+Positivity is useful for variables such as density, concentration, or normalized quantities. It should not be imposed on a temperature variable unless the chosen units and normalization make it physically valid.
+
+Recommended summer integration
+
+Start with evaluation-time correction on a trained DeepONet. This gives a fast feasibility check without changing the training loop.
+
+Then add train-time correction through correct when the constraint is regular and the output shape is stable.
+
+Always log projection status, correction norm, RMSE, boundary violation, bound violation, and any integral-balance violation.
+
+Interpretation
+
+Hard correction certifies selected constraints when status is success. It does not prove the raw model is good. A large correction norm means the raw model is far from the feasible set.
+
+Soft-plus-hard training is often the better practical path. The soft term encourages raw outputs near the feasible set, while the hard correction gives exact feasibility for reported outputs.

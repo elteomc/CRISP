@@ -33,6 +33,9 @@ The benchmark suite currently includes:
 - A fixed-step pendulum neural ODE benchmark with vanilla, soft-penalty, and projected rollouts.
 - A fixed-grid field correction benchmark with mass, positivity, and bound constraints.
 - Larger fixed-grid heat, Burgers, and Allen-Cahn integrations using sparse projection paths.
+- A DeepONet-style heat-operator helper benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard output paths.
+
+The active project direction is to make StructPINN a helper layer for physics-informed DeepONet and operator-surrogate work. The first self-contained helper benchmark now lives under `benchmarks/deeponet`.
 
 ## Results Snapshot
 
@@ -55,6 +58,14 @@ Larger PDE integrations, 3 seeds:
 - Burgers sparse-QP-bounded RMSE is `0.0243`, with mass and bounds at numerical precision.
 - Allen-Cahn sparse-QP-box RMSE is `0.0182`, with box bounds at numerical precision.
 
+DeepONet-style heat operator, 10 seeds:
+
+- Full hard-corrected RMSE is `0.0248`, with boundary and mass violations at numerical precision.
+- Full soft-plus-hard RMSE is `0.0456`, also with boundary and mass violations at numerical precision.
+- Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing boundary and mass constraints.
+- Vanilla RMSE is `0.0573`, with maximum boundary error `0.1879` and maximum mass error `0.0458`.
+- The best soft-penalty sweep row by RMSE is `0.0610`, and none of the soft rows enforces boundary or mass constraints exactly.
+
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
 
 ## Repository Map
@@ -63,13 +74,15 @@ These are pilot-scale results, not final paper claims. The next result step is b
 - `test/`: package-level invariant and gradient tests.
 - `benchmarks/pendulum/`: pendulum neural ODE benchmark.
 - `benchmarks/field/`: fixed-grid field and larger PDE benchmarks.
+- `benchmarks/deeponet/`: DeepONet-style heat-operator helper benchmark.
 - `quick.md`: compact current project state.
 - `deep.md`: detailed local project state and interpretation notes.
-- `PLAN.md`: local living specification and milestone plan.
+- `PLAN.md`: active forward plan, centered on DeepONet output correction and conference-oriented alternatives.
+- `PAST_PLAN.md`: archived original specification, invariants, and milestone history.
 - `pinn_proposal.tex`: local proposal narrative.
 - `refs.bib`: verified bibliography for the proposal references.
 
-`deep.md`, `PLAN.md`, and `pinn_proposal.tex` are local project documents and are ignored by git. `README.md`, `quick.md`, and `refs.bib` are tracked.
+`deep.md`, `PLAN.md`, `PAST_PLAN.md`, and `pinn_proposal.tex` are local project documents and are ignored by git. `README.md`, `quick.md`, and `refs.bib` are tracked.
 
 ## Run Tests
 
@@ -79,6 +92,7 @@ From the repository root:
 julia --project=. -e "using Pkg" -e "Pkg.instantiate()" -e "Pkg.test()"
 julia --project=benchmarks/pendulum benchmarks/pendulum/test.jl
 julia --project=benchmarks/field benchmarks/field/test.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/test.jl
 ```
 
 ## Generate Result Artifacts
@@ -96,6 +110,13 @@ Field and PDE:
 julia --project=benchmarks/field benchmarks/field/study.jl
 julia --project=benchmarks/field benchmarks/field/pde_study.jl
 julia --project=benchmarks/field benchmarks/field/plots.jl
+```
+
+DeepONet helper:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
 ```
 
 Sparse projection profiling:
