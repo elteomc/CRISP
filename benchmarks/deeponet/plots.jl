@@ -21,6 +21,10 @@ function col(names, name)
     return idx
 end
 
+function fmt(x)
+    return @sprintf("%.4g", Float64(x))
+end
+
 function labels(data, names)
     return String.(data[:, col(names, "model")])
 end
@@ -174,6 +178,14 @@ function metric_from(path, model, metric)
     return Float64(data[idx, col(names, metric)])
 end
 
+function value_from(path, metric)
+    data, names = table(path)
+    metrics = string.(data[:, col(names, "metric")])
+    idx = findfirst(==(metric), metrics)
+    idx === nothing && error("missing metric $(metric)")
+    return string(data[idx, col(names, "value")])
+end
+
 function panel_values(values, logscale)
     vals = Float64.(values)
     if !logscale
@@ -220,13 +232,45 @@ function write_bar_panel(io, x0, y0, width, height, title, labels_plot,
     return nothing
 end
 
+function write_text_panel(io, x0, y0, width, height, title, lines)
+    println(io, "<text x=\"$(x0 + width / 2)\" y=\"$(y0 + 24)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"18\">$(title)</text>")
+    println(io, "<rect x=\"$(x0 + 18)\" y=\"$(y0 + 44)\" width=\"$(width - 36)\" height=\"$(height - 76)\" fill=\"#f8fafc\" stroke=\"#d0d7de\"/>")
+    for (i, line) in enumerate(lines)
+        y = y0 + 74 + 32 * (i - 1)
+        println(io, "<text x=\"$(x0 + 38)\" y=\"$y\" font-family=\"sans-serif\" font-size=\"16\">$(line)</text>")
+    end
+    return nothing
+end
+
+function status_lines(path)
+    data, names = table(path)
+    phase = string.(data[:, col(names, "phase")])
+    model = string.(data[:, col(names, "model")])
+    status = string.(data[:, col(names, "status")])
+    count = Int.(data[:, col(names, "count")])
+    cmax = Float64.(data[:, col(names, "correction_max")])
+    selected = ["eval_only_full", "hard_full_cached",
+                "soft_plus_hard_full_cached"]
+    out = String[]
+    for name in selected
+        idx = findfirst(i -> phase[i] == "eval" && model[i] == name,
+                        eachindex(model))
+        idx === nothing && continue
+        label = plot_labels([name])[1]
+        push!(out, "$(label): $(status[idx]) $(count[idx]), max $(fmt(cmax[idx]))")
+    end
+    return out
+end
+
 function plot_report_bundle()
     result_path = joinpath(OUT, "results.csv")
     frequency_path = joinpath(OUT, "frequency_ablation.csv")
     constraint_path = joinpath(OUT, "constraint_ablation.csv")
     profile_path = joinpath(OUT, "projection_profile.csv")
+    sparse_path = joinpath(OUT, "sparse_decision.csv")
+    status_path = joinpath(OUT, "statuses.csv")
     all(isfile, (result_path, frequency_path, constraint_path,
-                 profile_path)) || return nothing
+                 profile_path, sparse_path, status_path)) || return nothing
 
     main_models = ["vanilla", "soft_weak", "eval_only_full",
                    "hard_full_cached", "soft_plus_hard_full_cached"]
@@ -248,18 +292,30 @@ function plot_report_bundle()
     constraint_rmse = [metric_from(constraint_path, m, "rmse_mean")
                        for m in constraint_models]
 
+    sparse_lines = [
+        "decision: $(value_from(sparse_path, "decision"))",
+        "max context seconds: $(value_from(sparse_path, "max_context_seconds"))",
+        "min cache speedup: $(value_from(sparse_path, "min_cached_speedup"))",
+        "mean train speedup: $(value_from(sparse_path, "mean_train_speedup"))",
+    ]
+    correction_lines = status_lines(status_path)
+
     path = joinpath(OUT, "deeponet_report_bundle.svg")
     open(path, "w") do io
-        println(io, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1500\" height=\"950\" viewBox=\"0 0 1500 950\">")
-        println(io, "<rect width=\"1500\" height=\"950\" fill=\"white\"/>")
-        write_bar_panel(io, 20, 20, 710, 430, "Main helper rows",
+        println(io, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1500\" height=\"1420\" viewBox=\"0 0 1500 1420\">")
+        println(io, "<rect width=\"1500\" height=\"1420\" fill=\"white\"/>")
+        write_bar_panel(io, 20, 20, 710, 420, "Main helper rows",
                         main_labels, rmse, false)
-        write_bar_panel(io, 770, 20, 710, 430, "Main mass feasibility",
+        write_bar_panel(io, 770, 20, 710, 420, "Main mass feasibility",
                         main_labels, mass, true)
-        write_bar_panel(io, 20, 490, 710, 430, "Projection frequency",
+        write_bar_panel(io, 20, 480, 710, 420, "Projection frequency",
                         freq_labels, freq_rmse, false)
-        write_bar_panel(io, 770, 490, 710, 430, "Constraint families",
+        write_bar_panel(io, 770, 480, 710, 420, "Constraint families",
                         constraint_labels, constraint_rmse, false)
+        write_text_panel(io, 20, 940, 710, 420, "Sparse decision",
+                         sparse_lines)
+        write_text_panel(io, 770, 940, 710, 420,
+                         "Statuses and correction norms", correction_lines)
         println(io, "</svg>")
     end
     return nothing

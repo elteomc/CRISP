@@ -77,9 +77,11 @@ DeepONet larger-grid helper, 5 seeds:
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for K=32, K=64, and K=96.
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - A mock summer adapter example shows how geothermal-style sample metadata can feed generic correction contexts without using the synthetic heat sample type.
+- A tracked constraint-selection guide explains when boundary, box, positivity, and balance correction are physically justified.
 - Stress diagnostics exercise infeasible balance, large correction norms, box-only kink status, and malformed adapter rows.
 - An ablation interpretation generator writes concise report takeaways from the frequency and constraint-family CSVs.
 - A sparse optimization decision script reads the current DeepONet projection profile and larger-grid timings. The current decision is to defer solver-internal sparse work until larger outputs or the summer interface make projection the measured bottleneck.
+- The report bundle SVG now combines main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
 - A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.

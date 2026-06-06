@@ -25,8 +25,9 @@ results/
 *.run.xml
 *.synctex.gz
 
-# Markdown and LaTeX kept out of version control, except README.md and quick.md
+# Markdown and LaTeX kept out of version control, except selected tracked docs
 *.md
 !README.md
 !quick.md
+!benchmarks/deeponet/constraint_selection_guide.md
 *.tex
