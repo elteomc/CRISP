@@ -1,7 +1,30 @@
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using StructPINN: project
 using Test, Random, Zygote, LinearAlgebra
+
+@testset "DeepONet helper scenario config" begin
+    study = study_scenario()
+    profile = profile_projection_scenario()
+    large = large_study_scenario()
+
+    @test study.grid == 32
+    @test first(study.seeds) == 1
+    @test length(study.soft_configs) >= 4
+    @test maximum(profile.grids) >= 256
+    @test profile.samples > 0
+    @test profile.repeats > 0
+    @test large.grids == (64, 96)
+    @test length(scenario_rows()) >= 6
+
+    withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8,16",
+            "STRUCTPINN_DEEPONET_STUDY_SEEDS" => "2:4") do
+        @test profile_projection_scenario().grids == (8, 16)
+        @test study_scenario().seeds == [2, 3, 4]
+    end
+end
 
 @testset "DeepONet helper heat benchmark" begin
     K = 24

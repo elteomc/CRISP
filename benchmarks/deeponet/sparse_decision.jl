@@ -66,6 +66,8 @@ max_context_seconds = maximum(context)
 max_context_over_raw = maximum(context_over_raw)
 min_cached_speedup = minimum(cached_speedup)
 mean_train_speedup = mean(train_speedups)
+max_profile_grid = maximum(grids)
+profile_grid_count = length(unique(grids))
 
 decision =
     max_context_seconds < 5e-4 && max_context_over_raw < 5.0 ?
@@ -89,6 +91,8 @@ open(joinpath(OUT, "sparse_decision.csv"), "w") do io
     println(io, "max_context_over_raw,$(@sprintf("%.8f", max_context_over_raw))")
     println(io, "min_cached_speedup,$(@sprintf("%.8f", min_cached_speedup))")
     println(io, "mean_train_speedup,$(@sprintf("%.8f", mean_train_speedup))")
+    println(io, "profile_grid_count,$profile_grid_count")
+    println(io, "max_profile_grid,$max_profile_grid")
 end
 
 open(joinpath(OUT, "sparse_decision.md"), "w") do io
@@ -99,6 +103,9 @@ open(joinpath(OUT, "sparse_decision.md"), "w") do io
     println(io, rationale)
     println(io)
     println(io, "## Profile Evidence")
+    println(io)
+    println(io, "Profiled grids: ", profile_grid_count,
+            ". Maximum K: ", max_profile_grid, ".")
     println(io)
     println(io, "| K | raw seconds | cached seconds | context seconds | cache speedup | context over raw |")
     println(io, "| --- | --- | --- | --- | --- | --- |")

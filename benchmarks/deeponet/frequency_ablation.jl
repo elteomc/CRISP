@@ -1,23 +1,26 @@
 # Projection-frequency ablation for the DeepONet helper benchmark.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Statistics, Printf, Zygote
 
-const K = 32
-const SEEDS = 1:5
-const STEPS = 80
-const OUT = joinpath(@__DIR__, "results")
+const SCENARIO = frequency_ablation_scenario()
+const K = SCENARIO.grid
+const SEEDS = SCENARIO.seeds
+const STEPS = SCENARIO.steps
+const TRAIN_SAMPLES = SCENARIO.train_samples
+const TEST_SAMPLES = SCENARIO.test_samples
+const OUT = SCENARIO.out
 
 isdir(OUT) || mkdir(OUT)
 
 const MODEL_NAMES = ["no_correction", "eval_only_full", "every_step",
                      "every_2_steps", "every_5_steps",
                      "every_10_steps"]
-const PERIODS = Dict("every_step" => 1, "every_2_steps" => 2,
-                     "every_5_steps" => 5, "every_10_steps" => 10)
-const METRICS = (:rmse, :boundary_max, :boundary_mean, :mass_max, :mass_mean,
-                 :lower_max, :lower_mean, :upper_max, :upper_mean)
+const PERIODS = SCENARIO.periods
+const METRICS = DeepONetScenarios.METRICS
 
 function ntmap(f, nts...)
     return NamedTuple{keys(nts[1])}(map(f, map(values, nts)...))
@@ -87,8 +90,8 @@ eval_status = Dict(m => ProjectionLog() for m in MODEL_NAMES)
 for seed in SEEDS
     @printf("seed %d: running projection-frequency ablation ...\n", seed)
     rng = MersenneTwister(20_000 + seed)
-    train_data, x, w = sample_heat_operator(18, K, rng = rng)
-    test_data, _, _ = sample_heat_operator(8, K, rng = rng)
+    train_data, x, w = sample_heat_operator(TRAIN_SAMPLES, K, rng = rng)
+    test_data, _, _ = sample_heat_operator(TEST_SAMPLES, K, rng = rng)
     test_contexts = heat_correction_contexts(test_data, w, mode = :full,
                                              cached = true)
     p0 = init_deeponet(seed = 20_000 + seed)

@@ -34,6 +34,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper now has a tracked constraint-selection guide for deciding when boundary, box, positivity, and balance correction are justified.
 - The DeepONet helper now has a tracked summer integration checklist and a constraint audit script for mock or CSV sample metadata.
 - The DeepONet helper now has a failure-mode figure generator and a tracked paper-results manifest.
+- The DeepONet helper now has a shared scenario layer for grids, seeds, steps, sample counts, and larger-output profiling through K=256 by default.
 - The DeepONet helper report tables now collect status counts and correction norms across the main, frequency, constraint-family, and larger-grid status files.
 - The report diagnostics now classify correction norms into warning bands so large successful corrections are not hidden.
 - The DeepONet report bundle SVG now includes main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
@@ -77,6 +78,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/constraint_audit.jl`, which audits available sample metadata and recommends an initial correction mode.
 - Added `benchmarks/deeponet/failure_mode_plots.jl`, which writes a compact failure-mode CSV and SVG from stress diagnostics.
 - Added `benchmarks/deeponet/paper_results_manifest.md`, which maps DeepONet commands to artifacts and supported claims.
+- Added `benchmarks/deeponet/DeepONetScenarios.jl` and `benchmarks/deeponet/scenario_manifest.jl`, which make DeepONet grids, seeds, steps, and sample counts auditable without editing study scripts.
 - Added a mock summer-sample adapter fixture to the DeepONet helper tests so the generic context path is checked without depending on unfinished group code.
 - Updated the DeepONet plots and report tables with ablation rows, status counts, correction norms, and a compact SVG report bundle.
 - Expanded `benchmarks/deeponet/plots.jl` so `deeponet_report_bundle.svg` includes sparse-decision and status/correction-norm panels.
@@ -152,6 +154,7 @@ Field benchmark (`benchmarks/field/`)
 
 DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/DeepONetHeat.jl`: DeepONet-style branch/trunk heat-operator model, synthetic heat data, boundary and full boundary-mass-box constraints, prebuilt cached correction contexts, vanilla, soft, hard, and soft-plus-hard losses, training, status logging, correction norms, and metrics.
+- `benchmarks/deeponet/DeepONetScenarios.jl`: shared scenario settings and environment overrides for DeepONet result suites.
 - `benchmarks/deeponet/test.jl`: helper benchmark harness, projection feasibility checks, Zygote gradient checks, training checks, and finite-difference checks through the hard-corrected loss.
 - `benchmarks/deeponet/study.jl`: 10 seed helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`.
 - `benchmarks/deeponet/large_study.jl`: larger-grid helper study for K=64 and K=96.
@@ -166,6 +169,7 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/constraint_audit.jl`: metadata audit for mock or CSV sample batches.
 - `benchmarks/deeponet/failure_mode_plots.jl`: failure-mode CSV and SVG generator from stress diagnostics.
 - `benchmarks/deeponet/paper_results_manifest.md`: map from commands and artifacts to report and paper claims.
+- `benchmarks/deeponet/scenario_manifest.jl`: writes the configured DeepONet run matrix to ignored CSV and markdown artifacts.
 - `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
 - `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
 - `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.

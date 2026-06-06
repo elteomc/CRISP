@@ -1,26 +1,22 @@
 # DeepONet helper study. Writes CSV artifacts to results/.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Statistics, Printf
 
-const K = 32
-const SEEDS = 1:10
-const STEPS = 90
-const OUT = joinpath(@__DIR__, "results")
+const SCENARIO = study_scenario()
+const K = SCENARIO.grid
+const SEEDS = SCENARIO.seeds
+const STEPS = SCENARIO.steps
+const TRAIN_SAMPLES = SCENARIO.train_samples
+const TEST_SAMPLES = SCENARIO.test_samples
+const OUT = SCENARIO.out
 
 isdir(OUT) || mkdir(OUT)
 
-const SOFT_CONFIGS = [
-    (name = "soft_weak", beta_boundary = 1.0, beta_mass = 1.0,
-     beta_box = 0.2),
-    (name = "soft_default", beta_boundary = 10.0, beta_mass = 10.0,
-     beta_box = 2.0),
-    (name = "soft_strong", beta_boundary = 50.0, beta_mass = 50.0,
-     beta_box = 10.0),
-    (name = "soft_boundary_heavy", beta_boundary = 80.0,
-     beta_mass = 10.0, beta_box = 2.0),
-]
+const SOFT_CONFIGS = SCENARIO.soft_configs
 
 const MODEL_NAMES = vcat(
     ["vanilla"],
@@ -30,8 +26,7 @@ const MODEL_NAMES = vcat(
      "soft_plus_hard_full", "soft_plus_hard_full_cached"],
 )
 
-const METRICS = (:rmse, :boundary_max, :boundary_mean, :mass_max, :mass_mean,
-                 :lower_max, :lower_mean, :upper_max, :upper_mean)
+const METRICS = DeepONetScenarios.METRICS
 
 acc = Dict(m => Dict(k => Float64[] for k in METRICS) for m in MODEL_NAMES)
 times = Dict(m => Float64[] for m in MODEL_NAMES)
@@ -144,8 +139,8 @@ for seed in SEEDS
     @printf("seed %d: training DeepONet helper baselines and ablations ...\n",
             seed)
     rng = MersenneTwister(seed)
-    train_data, x, w = sample_heat_operator(18, K, rng = rng)
-    test_data, _, _ = sample_heat_operator(8, K, rng = rng)
+    train_data, x, w = sample_heat_operator(TRAIN_SAMPLES, K, rng = rng)
+    test_data, _, _ = sample_heat_operator(TEST_SAMPLES, K, rng = rng)
     train_contexts_full = heat_correction_contexts(train_data, w,
                                                    mode = :full,
                                                    cached = true)

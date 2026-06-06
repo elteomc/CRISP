@@ -1,20 +1,25 @@
 # Evaluation-only correction example for a trained DeepONet-style surrogate.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Printf
 using Statistics
 
-const OUT = joinpath(@__DIR__, "results")
+const SCENARIO = eval_only_scenario()
+const OUT = SCENARIO.out
 isdir(OUT) || mkdir(OUT)
 
-const K = 32
-const STEPS = 90
+const K = SCENARIO.grid
+const STEPS = SCENARIO.steps
+const TRAIN_SAMPLES = SCENARIO.train_samples
+const TEST_SAMPLES = SCENARIO.test_samples
 
-rng = MersenneTwister(31)
-train_data, x, w = sample_heat_operator(18, K, rng = rng)
-test_data, _, _ = sample_heat_operator(8, K, rng = rng)
-p0 = init_deeponet(seed = 31)
+rng = MersenneTwister(SCENARIO.seed)
+train_data, x, w = sample_heat_operator(TRAIN_SAMPLES, K, rng = rng)
+test_data, _, _ = sample_heat_operator(TEST_SAMPLES, K, rng = rng)
+p0 = init_deeponet(seed = SCENARIO.seed)
 
 println("training vanilla DeepONet surrogate ...")
 p, hist = train!(pp -> vanilla_loss(pp, train_data, x), p0,

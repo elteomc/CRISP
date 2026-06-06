@@ -1,15 +1,18 @@
 # Projection runtime profile for the DeepONet helper benchmark.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Printf
 using StructPINN
 
-const OUT = joinpath(@__DIR__, "results")
-const GRIDS = (32, 64, 96)
-const NSAMPLES = 20
-const REPEATS = 8
-const TRIALS = 4
+const SCENARIO = profile_projection_scenario()
+const OUT = SCENARIO.out
+const GRIDS = SCENARIO.grids
+const NSAMPLES = SCENARIO.samples
+const REPEATS = SCENARIO.repeats
+const TRIALS = SCENARIO.trials
 
 isdir(OUT) || mkdir(OUT)
 
@@ -28,7 +31,7 @@ function best_time(f)
 end
 
 open(joinpath(OUT, "projection_profile.csv"), "w") do io
-    println(io, "grid,samples,repeats,raw_seconds,uncached_project_seconds,cached_project_seconds,context_project_seconds,construct_context_seconds")
+    println(io, "grid,samples,repeats,raw_seconds,uncached_project_seconds,cached_project_seconds,context_project_seconds,construct_context_seconds,cached_speedup,context_over_raw,construct_over_context")
     for K in GRIDS
         rng = MersenneTwister(20_000 + K)
         data, x, w = sample_heat_operator(NSAMPLES, K, rng = rng)
@@ -63,6 +66,7 @@ open(joinpath(OUT, "projection_profile.csv"), "w") do io
         construct_time = best_time() do
             contexts = heat_correction_contexts(data, w, mode = :full,
                                                 cached = true)
+            length(contexts) == NSAMPLES || error("context count mismatch")
         end
 
         contexts = heat_correction_contexts(data, w, mode = :full,
@@ -83,13 +87,21 @@ open(joinpath(OUT, "projection_profile.csv"), "w") do io
             end
         end
 
-        println(io, @sprintf("%d,%d,%d,%.8e,%.8e,%.8e,%.8e,%.8e",
+        raw_seconds = seconds_per_call(raw_time, calls)
+        uncached_seconds = seconds_per_call(uncached_time, calls)
+        cached_seconds = seconds_per_call(cached_time, calls)
+        context_seconds = seconds_per_call(context_time, calls)
+        construct_seconds = construct_time / NSAMPLES
+        cached_speedup = uncached_seconds / cached_seconds
+        context_over_raw = context_seconds / raw_seconds
+        construct_over_context = construct_seconds / context_seconds
+
+        println(io, @sprintf("%d,%d,%d,%.8e,%.8e,%.8e,%.8e,%.8e,%.8f,%.8f,%.8f",
                              K, NSAMPLES, REPEATS,
-                             seconds_per_call(raw_time, calls),
-                             seconds_per_call(uncached_time, calls),
-                             seconds_per_call(cached_time, calls),
-                             seconds_per_call(context_time, calls),
-                             construct_time / NSAMPLES))
+                             raw_seconds, uncached_seconds,
+                             cached_seconds, context_seconds,
+                             construct_seconds, cached_speedup,
+                             context_over_raw, construct_over_context))
     end
 end
 

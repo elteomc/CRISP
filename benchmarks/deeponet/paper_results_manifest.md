@@ -58,7 +58,26 @@ Supported claims:
 
 - Cached context projection is substantially faster than uncached projection.
 - Current cached context projection is sub-millisecond at the profiled grids.
+- Default profiling now includes larger output grids up to K=256.
 - Larger-output profiling should happen before choosing more result runs or solver-internal sparse work.
+
+## Run Scenario Manifest
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/scenario_manifest.jl
+```
+
+Artifacts:
+
+- `run_scenarios.csv`
+- `run_scenarios.md`
+
+Supported claims:
+
+- The DeepONet result-suite grids, seeds, steps, and sample counts are auditable before longer runs.
+- Environment overrides can change result-suite size without editing benchmark source files.
 
 ## Evaluation-Only Correction
 

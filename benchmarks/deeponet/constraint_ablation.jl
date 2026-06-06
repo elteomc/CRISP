@@ -1,23 +1,26 @@
 # Constraint-family ablation for the DeepONet helper benchmark.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Statistics, Printf
 
-const K = 32
-const SEEDS = 1:5
-const STEPS = 80
-const OUT = joinpath(@__DIR__, "results")
+const SCENARIO = constraint_ablation_scenario()
+const K = SCENARIO.grid
+const SEEDS = SCENARIO.seeds
+const STEPS = SCENARIO.steps
+const TRAIN_SAMPLES = SCENARIO.train_samples
+const TEST_SAMPLES = SCENARIO.test_samples
+const OUT = SCENARIO.out
 
 isdir(OUT) || mkdir(OUT)
 
-const TRAIN_MODES = (:boundary_only, :mass_only, :boundary_box, :full)
-const EVAL_MODES = (:boundary_only, :box_only, :mass_only, :boundary_box,
-                    :full)
+const TRAIN_MODES = SCENARIO.train_modes
+const EVAL_MODES = SCENARIO.eval_modes
 const MODEL_NAMES = vcat(["vanilla"], ["hard_$(m)" for m in TRAIN_MODES],
                          ["eval_$(m)" for m in EVAL_MODES])
-const METRICS = (:rmse, :boundary_max, :boundary_mean, :mass_max, :mass_mean,
-                 :lower_max, :lower_mean, :upper_max, :upper_mean)
+const METRICS = DeepONetScenarios.METRICS
 
 function stat(xs)
     isempty(xs) && return 0.0, 0.0
@@ -61,8 +64,8 @@ eval_status = Dict(m => ProjectionLog() for m in MODEL_NAMES)
 for seed in SEEDS
     @printf("seed %d: running constraint-family ablation ...\n", seed)
     rng = MersenneTwister(30_000 + seed)
-    train_data, x, w = sample_heat_operator(18, K, rng = rng)
-    test_data, _, _ = sample_heat_operator(8, K, rng = rng)
+    train_data, x, w = sample_heat_operator(TRAIN_SAMPLES, K, rng = rng)
+    test_data, _, _ = sample_heat_operator(TEST_SAMPLES, K, rng = rng)
     p0 = init_deeponet(seed = 30_000 + seed)
 
     tv = @elapsed pv, _ = train!(p -> vanilla_loss(p, train_data, x), p0,

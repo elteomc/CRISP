@@ -1,21 +1,25 @@
 # Larger-grid DeepONet helper study. Writes CSV artifacts to results/.
 # Run: julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl
 include("DeepONetHeat.jl")
+include("DeepONetScenarios.jl")
 using .DeepONetHeat
+using .DeepONetScenarios
 using Random, Statistics, Printf
 
-const GRIDS = (64, 96)
-const SEEDS = 1:5
-const STEPS = 70
-const OUT = joinpath(@__DIR__, "results")
+const SCENARIO = large_study_scenario()
+const GRIDS = SCENARIO.grids
+const SEEDS = SCENARIO.seeds
+const STEPS = SCENARIO.steps
+const TRAIN_SAMPLES = SCENARIO.train_samples
+const TEST_SAMPLES = SCENARIO.test_samples
+const OUT = SCENARIO.out
 
 isdir(OUT) || mkdir(OUT)
 
 const MODEL_NAMES = ["vanilla", "soft_weak", "eval_only_full",
                      "hard_full", "hard_full_cached",
                      "soft_plus_hard_full_cached"]
-const METRICS = (:rmse, :boundary_max, :boundary_mean, :mass_max, :mass_mean,
-                 :lower_max, :lower_mean, :upper_max, :upper_mean)
+const METRICS = DeepONetScenarios.METRICS
 
 function stat(xs)
     isempty(xs) && return 0.0, 0.0
@@ -80,8 +84,10 @@ open(joinpath(OUT, "large_results.csv"), "w") do rio
                 @printf("grid %d seed %d: running larger DeepONet helper rows ...\n",
                         K, seed)
                 rng = MersenneTwister(10_000 + 100K + seed)
-                train_data, x, w = sample_heat_operator(18, K, rng = rng)
-                test_data, _, _ = sample_heat_operator(8, K, rng = rng)
+                train_data, x, w = sample_heat_operator(TRAIN_SAMPLES, K,
+                                                         rng = rng)
+                test_data, _, _ = sample_heat_operator(TEST_SAMPLES, K,
+                                                       rng = rng)
                 train_contexts = heat_correction_contexts(train_data, w,
                                                           mode = :full,
                                                           cached = true)
