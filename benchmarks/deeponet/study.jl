@@ -102,6 +102,44 @@ function add_eval!(name, ev)
     return nothing
 end
 
+function warmup_study()
+    rng = MersenneTwister(90_000)
+    warm_data, warm_x, warm_w = sample_heat_operator(2, K, rng = rng)
+    warm_contexts = heat_correction_contexts(warm_data, warm_w,
+                                             mode = :full,
+                                             cached = true)
+    warm_p = init_deeponet(seed = 90_000)
+    train!(p -> vanilla_loss(p, warm_data, warm_x), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> soft_loss(p, warm_data, warm_x, warm_w,
+                          beta_boundary = 1.0,
+                          beta_mass = 1.0,
+                          beta_box = 0.2), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> hard_loss(p, warm_data, warm_x, warm_w,
+                          mode = :boundary_box), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> hard_loss(p, warm_data, warm_x, warm_w,
+                          mode = :full), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> context_hard_loss(p, warm_contexts, warm_x), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> soft_plus_hard_loss(p, warm_data, warm_x, warm_w,
+                                    beta_boundary = 2.0,
+                                    beta_mass = 2.0,
+                                    beta_box = 0.5,
+                                    mode = :full), warm_p,
+           steps = 1, lr = 8e-3)
+    train!(p -> context_soft_plus_hard_loss(p, warm_contexts, warm_x,
+                                            beta_boundary = 2.0,
+                                            beta_mass = 2.0,
+                                            beta_box = 0.5), warm_p,
+           steps = 1, lr = 8e-3)
+    return nothing
+end
+
+warmup_study()
+
 for seed in SEEDS
     @printf("seed %d: training DeepONet helper baselines and ablations ...\n",
             seed)

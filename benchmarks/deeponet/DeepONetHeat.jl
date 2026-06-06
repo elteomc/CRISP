@@ -13,6 +13,8 @@ export ProjectionLog, record!,
        grid, trapezoid_weights, mass, heat_operator_field,
        sample_heat_operator, init_deeponet, deeponet_model,
        boundary_box_constraint, full_heat_constraint,
+       boundary_mass_rows, operator_correction_context,
+       operator_correction_contexts, corrected_output,
        heat_correction_context, heat_correction_contexts,
        vanilla_loss, soft_loss, hard_projected_field, hard_loss,
        soft_plus_hard_loss, context_projected_field, context_hard_loss,
@@ -115,6 +117,76 @@ function _bound_vector(v, K)
     return v isa AbstractVector ? collect(v) : fill(v, K)
 end
 
+function boundary_mass_rows(w)
+    K = length(w)
+    left = zeros(Float64, K)
+    right = zeros(Float64, K)
+    left[1] = 1.0
+    right[K] = 1.0
+    return [left, right, collect(w)]
+end
+
+function _row_matrix(rows, K)
+    length(rows) > 0 || throw(ArgumentError("at least one row is required"))
+    A = spzeros(Float64, length(rows), K)
+    for (i, row) in enumerate(rows)
+        length(row) == K ||
+            throw(ArgumentError("constraint row length must match output size"))
+        for j in eachindex(row)
+            value = Float64(row[j])
+            value == 0.0 || (A[i, j] = value)
+        end
+    end
+    return A
+end
+
+_resolve_spec(spec, sample) = spec isa Function ? spec(sample) : spec
+
+function operator_correction_context(K; equality_rows, equality_values,
+                                     lower = 0.0, upper = 2.0,
+                                     data = nothing, weights = nothing,
+                                     cached = true, mode = :operator,
+                                     metadata = NamedTuple())
+    values = Float64.(collect(equality_values))
+    length(equality_rows) == length(values) ||
+        throw(ArgumentError("number of rows must match equality values"))
+    base = SparseBoxAffineConstraint(_row_matrix(equality_rows, K), values,
+                                     _bound_vector(lower, K),
+                                     _bound_vector(upper, K))
+    constraint = cached ? CachedSparseBoxAffineConstraint(base) : base
+    stored_weights = weights === nothing ? nothing : collect(weights)
+    return (data = data, weights = stored_weights, constraint = constraint,
+            mode = mode, cached = cached, metadata = metadata)
+end
+
+function operator_correction_contexts(data, K; equality_rows,
+                                      equality_values, lower = 0.0,
+                                      upper = 2.0, weights = nothing,
+                                      cached = true, mode = :operator,
+                                      metadata = NamedTuple())
+    return [operator_correction_context(K,
+                                        equality_rows =
+                                            _resolve_spec(equality_rows, d),
+                                        equality_values =
+                                            _resolve_spec(equality_values, d),
+                                        lower = _resolve_spec(lower, d),
+                                        upper = _resolve_spec(upper, d),
+                                        data = d,
+                                        weights = _resolve_spec(weights, d),
+                                        cached = cached, mode = mode,
+                                        metadata = _resolve_spec(metadata, d))
+            for d in data]
+end
+
+function corrected_output(pred, ctx; log = nothing,
+                          failure_policy = :error)
+    c = ctx.constraint
+    Zygote.ignore() do
+        _record_projection!(c, pred, log, failure_policy)
+    end
+    return correct(c, pred)
+end
+
 function boundary_box_constraint(K, left, right; lower = 0.0, upper = 2.0)
     return SparseBoxAffineConstraint(_boundary_matrix(K), [left, right],
                                      _bound_vector(lower, K),
@@ -131,14 +203,15 @@ end
 
 function heat_correction_context(d, w; lower = 0.0, upper = 2.0,
                                  mode = :full, cached = true)
-    base = mode === :boundary_box ?
-        boundary_box_constraint(length(w), d.left, d.right,
-                                lower = lower, upper = upper) :
-        full_heat_constraint(w, d.left, d.right, d.mass0,
-                             lower = lower, upper = upper)
-    constraint = cached ? CachedSparseBoxAffineConstraint(base) : base
-    return (data = d, weights = collect(w), constraint = constraint,
-            mode = mode, cached = cached)
+    rows = mode === :boundary_box ? boundary_mass_rows(w)[1:2] :
+        boundary_mass_rows(w)
+    values = mode === :boundary_box ? [d.left, d.right] :
+        [d.left, d.right, d.mass0]
+    return operator_correction_context(length(w), equality_rows = rows,
+                                       equality_values = values,
+                                       lower = lower, upper = upper,
+                                       data = d, weights = w,
+                                       cached = cached, mode = mode)
 end
 
 function heat_correction_contexts(data, w; lower = 0.0, upper = 2.0,
@@ -230,11 +303,8 @@ function context_projected_field(p, ctx, x; log = nothing,
                                  failure_policy = :error)
     d = ctx.data
     pred = deeponet_model(p, d.theta, x)
-    c = ctx.constraint
-    Zygote.ignore() do
-        _record_projection!(c, pred, log, failure_policy)
-    end
-    return correct(c, pred)
+    return corrected_output(pred, ctx, log = log,
+                            failure_policy = failure_policy)
 end
 
 function context_hard_loss(p, contexts, x; log = nothing,

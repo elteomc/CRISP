@@ -58,6 +58,34 @@ using Test, Random, Zygote
     @test isapprox(hp_ctx, hp, rtol = 1e-10, atol = 1e-10)
     @test get(ctx_log.counts, :success, 0) == 1
 
+    rows = boundary_mass_rows(w)
+    adapter_ctx = operator_correction_context(K,
+                                              equality_rows = rows,
+                                              equality_values =
+                                                  [data[1].left,
+                                                   data[1].right,
+                                                   data[1].mass0],
+                                              lower = 0.0, upper = 2.0,
+                                              data = data[1], weights = w,
+                                              mode = :summer_adapter)
+    adapter_log = ProjectionLog()
+    adapter_pred = corrected_output(pred, adapter_ctx, log = adapter_log)
+    @test isapprox(adapter_pred, hp, rtol = 1e-10, atol = 1e-10)
+    @test boundary_violation(adapter_pred, data[1]) < 1e-9
+    @test mass_violation(adapter_pred, data[1], w) < 1e-9
+    @test get(adapter_log.counts, :success, 0) == 1
+
+    adapter_contexts =
+        operator_correction_contexts(data, K,
+                                     equality_rows = rows,
+                                     equality_values =
+                                         d -> [d.left, d.right, d.mass0],
+                                     lower = 0.0, upper = 2.0,
+                                     weights = w,
+                                     mode = :summer_adapter)
+    @test length(adapter_contexts) == length(data)
+    @test all(ctx -> ctx.mode === :summer_adapter, adapter_contexts)
+
     g = Zygote.gradient(pp -> hard_loss(pp, data, x, w), p)[1]
     @test all(isfinite, g.Wb1)
     @test all(isfinite, g.Wt1)

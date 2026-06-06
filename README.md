@@ -34,6 +34,7 @@ The benchmark suite currently includes:
 - A fixed-grid field correction benchmark with mass, positivity, and bound constraints.
 - Larger fixed-grid heat, Burgers, and Allen-Cahn integrations using sparse projection paths.
 - A DeepONet-style heat-operator helper benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard output paths.
+- Generic DeepONet output-correction adapter helpers for fixed-grid operator surrogates.
 
 The active project direction is to make StructPINN a helper layer for physics-informed DeepONet and operator-surrogate work. The first self-contained helper benchmark now lives under `benchmarks/deeponet`.
 
@@ -61,7 +62,7 @@ Larger PDE integrations, 3 seeds:
 DeepONet-style heat operator, 10 seeds:
 
 - Full hard-corrected RMSE is `0.0248`, with boundary and mass violations at numerical precision.
-- Cached full hard correction matches the uncached full hard metrics and reduces the mean training time in this small run.
+- Cached full hard correction matches the uncached full hard metrics and reduces mean training time from `1.09` to `0.80` seconds in this small run.
 - Full soft-plus-hard RMSE is `0.0456`, also with boundary and mass violations at numerical precision.
 - Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing boundary and mass constraints.
 - Vanilla RMSE is `0.0573`, with maximum boundary error `0.1879` and maximum mass error `0.0458`.
@@ -70,9 +71,10 @@ DeepONet-style heat operator, 10 seeds:
 DeepONet larger-grid helper, 5 seeds:
 
 - At K=64, cached full hard correction has RMSE `0.0272`, exact boundary and mass feasibility, and mean training time `1.15` seconds.
-- At K=96, cached full hard correction has RMSE `0.0247`, exact boundary and mass feasibility, and mean training time `2.06` seconds.
+- At K=96, cached full hard correction has RMSE `0.0247`, exact boundary and mass feasibility, and mean training time `2.12` seconds.
 - Evaluation-only full correction improves vanilla predictions while enforcing constraints without retraining.
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for K=32, K=64, and K=96.
+- A report-table generator combines the 10 seed study, larger-grid rows, projection profile, and evaluation-only example into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
 
@@ -128,6 +130,7 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/report_table.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
 ```
 

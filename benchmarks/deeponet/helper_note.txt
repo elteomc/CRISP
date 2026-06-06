@@ -24,6 +24,27 @@ corrected = context_projected_field(params, context, output_grid)
 
 This avoids rebuilding the sparse constraint and its cached factorization inside every training step. It is the pattern to adapt once the summer DeepONet data structure is available.
 
+Summer adapter pattern
+
+For project data that is not shaped like the synthetic heat samples, build generic contexts from constraint rows and per-sample equality values.
+
+rows = boundary_mass_rows(weights)
+contexts = operator_correction_contexts(
+    summer_samples,
+    length(output_grid),
+    equality_rows = rows,
+    equality_values = sample -> [sample.left_bc, sample.right_bc, sample.balance],
+    lower = lower_bound,
+    upper = upper_bound,
+    weights = weights,
+    mode = :summer_adapter,
+)
+
+raw = summer_deeponet(params, sample, output_grid)
+corrected = corrected_output(raw, contexts[i])
+
+The equality rows can be replaced with any physically justified linear rows. The values can be constants or functions of each sample.
+
 Useful constraints
 
 Boundary values are usually safe when the PDE case study has fixed Dirichlet values and the output vector includes boundary grid points. They can be represented by affine rows selecting the boundary entries.
