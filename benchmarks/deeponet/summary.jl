@@ -155,6 +155,24 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         end
     end
 
+    audit_path = joinpath(OUT, "constraint_audit.csv")
+    if isfile(audit_path)
+        data, names = table(audit_path)
+        println(io)
+        println(io, "Constraint audit")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "case_id")]),
+                    " mode ",
+                    string(data[i, col(names, "recommended_mode")]),
+                    " boundary ",
+                    string(data[i, col(names, "boundary")]),
+                    " bounds ",
+                    string(data[i, col(names, "bounds")]),
+                    " balance ",
+                    string(data[i, col(names, "balance")]))
+        end
+    end
+
     sparse_path = joinpath(OUT, "sparse_decision.csv")
     if isfile(sparse_path)
         data, names = table(sparse_path)

@@ -78,10 +78,13 @@ DeepONet larger-grid helper, 5 seeds:
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - A mock summer adapter example shows how geothermal-style sample metadata can feed generic correction contexts without using the synthetic heat sample type.
 - A tracked constraint-selection guide explains when boundary, box, positivity, and balance correction are physically justified.
+- A tracked summer integration checklist records the output shape, grid, metadata, units, bounds, balance quantities, hooks, and logging needed from the group DeepONet code.
+- A constraint audit script checks mock or CSV sample metadata and recommends a starting correction mode.
 - Stress diagnostics exercise infeasible balance, large correction norms, box-only kink status, and malformed adapter rows.
 - An ablation interpretation generator writes concise report takeaways from the frequency and constraint-family CSVs.
 - A sparse optimization decision script reads the current DeepONet projection profile and larger-grid timings. The current decision is to defer solver-internal sparse work until larger outputs or the summer interface make projection the measured bottleneck.
 - The report bundle SVG now combines main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
+- Report diagnostics now classify correction norms into warning bands so successful projections with large raw-output corrections stay visible.
 - A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
@@ -140,6 +143,7 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summer_adapter_example.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_audit.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/stress_diagnostics.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/ablation_interpretation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_decision.jl

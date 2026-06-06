@@ -242,6 +242,13 @@ function write_text_panel(io, x0, y0, width, height, title, lines)
     return nothing
 end
 
+function correction_band(count, correction_max)
+    count == 0 && return "none"
+    correction_max <= 0.5 && return "small"
+    correction_max <= 2.0 && return "moderate"
+    return "large"
+end
+
 function status_lines(path)
     data, names = table(path)
     phase = string.(data[:, col(names, "phase")])
@@ -257,7 +264,8 @@ function status_lines(path)
                         eachindex(model))
         idx === nothing && continue
         label = plot_labels([name])[1]
-        push!(out, "$(label): $(status[idx]) $(count[idx]), max $(fmt(cmax[idx]))")
+        band = correction_band(count[idx], cmax[idx])
+        push!(out, "$(label): $(status[idx]) $(count[idx]), max $(fmt(cmax[idx])), $(band)")
     end
     return out
 end

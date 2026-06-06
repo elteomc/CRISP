@@ -34,10 +34,10 @@ end
 
 function csv_line(io, cells)
     fields = string.(cells)
-    if length(fields) < 8
-        fields = vcat(fields, fill("", 8 - length(fields)))
+    if length(fields) < 9
+        fields = vcat(fields, fill("", 9 - length(fields)))
     end
-    println(io, join(fields[1:8], ","))
+    println(io, join(fields[1:9], ","))
 end
 
 function md_header(io, cells)
@@ -156,17 +156,27 @@ function write_adapter_table(io, csvio)
     return nothing
 end
 
+function correction_band(count, correction_max)
+    count == 0 && return :none
+    correction_max <= 0.5 && return :small
+    correction_max <= 2.0 && return :moderate
+    return :large
+end
+
 function status_row(data, names, i, source)
     label = source
     if "grid" in names
         label = "$(source) K=$(Int(data[i, col(names, "grid")]))"
     end
+    count = Int(data[i, col(names, "count")])
+    cmax = Float64(data[i, col(names, "correction_max")])
     return [label, String(data[i, col(names, "phase")]),
             String(data[i, col(names, "model")]),
             String(data[i, col(names, "status")]),
-            Int(data[i, col(names, "count")]),
+            count,
             fmt(data[i, col(names, "correction_mean")]),
-            fmt(data[i, col(names, "correction_max")])]
+            fmt(cmax),
+            correction_band(count, cmax)]
 end
 
 function write_status_source(io, csvio, filename, source)
@@ -186,7 +196,8 @@ function write_status_table(io, csvio)
     println(io, "## Status And Correction Norm Diagnostics")
     println(io)
     md_header(io, ["source", "phase", "model", "status", "count",
-                   "correction mean", "correction max"])
+                   "correction mean", "correction max",
+                   "correction band"])
     write_status_source(io, csvio, "statuses.csv", "main")
     write_status_source(io, csvio, "frequency_statuses.csv", "frequency")
     write_status_source(io, csvio, "constraint_statuses.csv", "constraint")
@@ -232,6 +243,28 @@ function write_constraint_table(io, csvio)
                fmt(row[col(names, "massmax_mean")])]
         md_line(io, out)
         csv_line(csvio, vcat(["constraint"], out))
+    end
+    println(io)
+    return nothing
+end
+
+function write_constraint_audit_table(io, csvio)
+    path = joinpath(OUT, "constraint_audit.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Constraint Audit")
+    println(io)
+    md_header(io, ["case", "boundary", "bounds", "balance",
+                   "positivity", "recommended mode"])
+    for i in axes(data, 1)
+        row = [String(data[i, col(names, "case_id")]),
+               String(data[i, col(names, "boundary")]),
+               String(data[i, col(names, "bounds")]),
+               String(data[i, col(names, "balance")]),
+               String(data[i, col(names, "positivity")]),
+               String(data[i, col(names, "recommended_mode")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["constraint_audit"], row))
     end
     println(io)
     return nothing
@@ -294,7 +327,7 @@ end
 
 open(joinpath(OUT, "report_table.csv"), "w") do csvio
     csv_line(csvio, ["section", "field1", "field2", "field3", "field4",
-                     "field5", "field6", "field7"])
+                     "field5", "field6", "field7", "field8"])
     open(joinpath(OUT, "report_table.md"), "w") do io
         println(io, "# DeepONet Helper Report Tables")
         println(io)
@@ -306,6 +339,7 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_status_table(io, csvio)
         write_frequency_table(io, csvio)
         write_constraint_table(io, csvio)
+        write_constraint_audit_table(io, csvio)
         write_sparse_decision_table(io, csvio)
         write_stress_table(io, csvio)
         write_interpretation_table(io, csvio)
