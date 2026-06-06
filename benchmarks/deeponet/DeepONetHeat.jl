@@ -13,10 +13,12 @@ export ProjectionLog, record!,
        grid, trapezoid_weights, mass, heat_operator_field,
        sample_heat_operator, init_deeponet, deeponet_model,
        boundary_box_constraint, full_heat_constraint,
+       heat_correction_context, heat_correction_contexts,
        vanilla_loss, soft_loss, hard_projected_field, hard_loss,
-       soft_plus_hard_loss, train!, field_rmse,
+       soft_plus_hard_loss, context_projected_field, context_hard_loss,
+       context_soft_plus_hard_loss, train!, field_rmse,
        boundary_violation, mass_violation, lower_violation, upper_violation,
-       evaluate_model
+       evaluate_model, evaluate_context_model
 
 mutable struct ProjectionLog
     counts::Dict{Symbol,Int}
@@ -127,6 +129,25 @@ function full_heat_constraint(w, left, right, mass0; lower = 0.0,
                                      _bound_vector(upper, K))
 end
 
+function heat_correction_context(d, w; lower = 0.0, upper = 2.0,
+                                 mode = :full, cached = true)
+    base = mode === :boundary_box ?
+        boundary_box_constraint(length(w), d.left, d.right,
+                                lower = lower, upper = upper) :
+        full_heat_constraint(w, d.left, d.right, d.mass0,
+                             lower = lower, upper = upper)
+    constraint = cached ? CachedSparseBoxAffineConstraint(base) : base
+    return (data = d, weights = collect(w), constraint = constraint,
+            mode = mode, cached = cached)
+end
+
+function heat_correction_contexts(data, w; lower = 0.0, upper = 2.0,
+                                  mode = :full, cached = true)
+    return [heat_correction_context(d, w, lower = lower, upper = upper,
+                                    mode = mode, cached = cached)
+            for d in data]
+end
+
 function _constraint_penalty(pred, d, w; lower = 0.0, upper = 2.0,
                              beta_boundary = 10.0, beta_mass = 10.0,
                              beta_box = 2.0)
@@ -205,6 +226,29 @@ function hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
     return s / length(data)
 end
 
+function context_projected_field(p, ctx, x; log = nothing,
+                                 failure_policy = :error)
+    d = ctx.data
+    pred = deeponet_model(p, d.theta, x)
+    c = ctx.constraint
+    Zygote.ignore() do
+        _record_projection!(c, pred, log, failure_policy)
+    end
+    return correct(c, pred)
+end
+
+function context_hard_loss(p, contexts, x; log = nothing,
+                           failure_policy = :error)
+    s = 0.0
+    for ctx in contexts
+        d = ctx.data
+        pred = context_projected_field(p, ctx, x, log = log,
+                                       failure_policy = failure_policy)
+        s += mean(abs2, pred .- d.u)
+    end
+    return s / length(contexts)
+end
+
 function soft_plus_hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
                              beta_boundary = 2.0, beta_mass = 2.0,
                              beta_box = 0.5, log = nothing,
@@ -230,6 +274,30 @@ function soft_plus_hard_loss(p, data, x, w; lower = 0.0, upper = 2.0,
                                  beta_box = beta_box)
     end
     return s / length(data)
+end
+
+function context_soft_plus_hard_loss(p, contexts, x; lower = 0.0,
+                                     upper = 2.0, beta_boundary = 2.0,
+                                     beta_mass = 2.0, beta_box = 0.5,
+                                     log = nothing,
+                                     failure_policy = :error)
+    s = 0.0
+    for ctx in contexts
+        d = ctx.data
+        raw = deeponet_model(p, d.theta, x)
+        c = ctx.constraint
+        Zygote.ignore() do
+            _record_projection!(c, raw, log, failure_policy)
+        end
+        pred = correct(c, raw)
+        s += mean(abs2, pred .- d.u)
+        s += _constraint_penalty(raw, d, ctx.weights, lower = lower,
+                                 upper = upper,
+                                 beta_boundary = beta_boundary,
+                                 beta_mass = beta_mass,
+                                 beta_box = beta_box)
+    end
+    return s / length(contexts)
 end
 
 _ntmap(f, nts...) = NamedTuple{keys(nts[1])}(map(f, map(values, nts)...))
@@ -270,6 +338,29 @@ function evaluate_model(predict, data, w; lower = 0.0, upper = 2.0)
         push!(rmses, field_rmse(pred, d.u))
         push!(bviol, boundary_violation(pred, d))
         push!(mviol, mass_violation(pred, d, w))
+        push!(lviol, lower_violation(pred, lower))
+        push!(uviol, upper_violation(pred, upper))
+    end
+    return (rmse = mean(rmses), boundary_max = maximum(bviol),
+            boundary_mean = mean(bviol), mass_max = maximum(mviol),
+            mass_mean = mean(mviol), lower_max = maximum(lviol),
+            lower_mean = mean(lviol), upper_max = maximum(uviol),
+            upper_mean = mean(uviol))
+end
+
+function evaluate_context_model(predict, contexts; lower = 0.0,
+                                upper = 2.0)
+    rmses = Float64[]
+    bviol = Float64[]
+    mviol = Float64[]
+    lviol = Float64[]
+    uviol = Float64[]
+    for ctx in contexts
+        d = ctx.data
+        pred = predict(ctx)
+        push!(rmses, field_rmse(pred, d.u))
+        push!(bviol, boundary_violation(pred, d))
+        push!(mviol, mass_violation(pred, d, ctx.weights))
         push!(lviol, lower_violation(pred, lower))
         push!(uviol, upper_violation(pred, upper))
     end

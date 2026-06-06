@@ -30,8 +30,10 @@ function plot_labels(models)
         "soft_boundary_heavy" => "soft_bheavy",
         "eval_only_full" => "eval_full",
         "hard_boundary_box" => "hard_bbox",
+        "hard_full_cached" => "hard_full_c",
         "soft_plus_hard_boundary_box" => "sph_bbox",
         "soft_plus_hard_full" => "sph_full",
+        "soft_plus_hard_full_cached" => "sph_full_c",
     )
     return [get(replacements, m, m) for m in models]
 end

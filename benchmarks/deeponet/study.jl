@@ -26,7 +26,8 @@ const MODEL_NAMES = vcat(
     ["vanilla"],
     [cfg.name for cfg in SOFT_CONFIGS],
     ["eval_only_full", "hard_boundary_box", "hard_full",
-     "soft_plus_hard_boundary_box", "soft_plus_hard_full"],
+     "hard_full_cached", "soft_plus_hard_boundary_box",
+     "soft_plus_hard_full", "soft_plus_hard_full_cached"],
 )
 
 const METRICS = (:rmse, :boundary_max, :boundary_mean, :mass_max, :mass_mean,
@@ -80,6 +81,20 @@ function run_soft_plus_hard(mode, p0, train_data, x, w, log)
                   p0, steps = STEPS, lr = 8e-3)
 end
 
+function run_context_hard(p0, contexts, x, log)
+    return train!(p -> context_hard_loss(p, contexts, x, log = log),
+                  p0, steps = STEPS, lr = 8e-3)
+end
+
+function run_context_soft_plus_hard(p0, contexts, x, log)
+    return train!(p -> context_soft_plus_hard_loss(p, contexts, x,
+                                                   beta_boundary = 2.0,
+                                                   beta_mass = 2.0,
+                                                   beta_box = 0.5,
+                                                   log = log),
+                  p0, steps = STEPS, lr = 8e-3)
+end
+
 function add_eval!(name, ev)
     for k in METRICS
         push!(acc[name][k], getfield(ev, k))
@@ -93,6 +108,12 @@ for seed in SEEDS
     rng = MersenneTwister(seed)
     train_data, x, w = sample_heat_operator(18, K, rng = rng)
     test_data, _, _ = sample_heat_operator(8, K, rng = rng)
+    train_contexts_full = heat_correction_contexts(train_data, w,
+                                                   mode = :full,
+                                                   cached = true)
+    test_contexts_full = heat_correction_contexts(test_data, w,
+                                                  mode = :full,
+                                                  cached = true)
     p0 = init_deeponet(seed = seed)
 
     tv = @elapsed pv, hv = train!(p -> vanilla_loss(p, train_data, x), p0,
@@ -122,6 +143,17 @@ for seed in SEEDS
     merge_log!(train_status["hard_full"], log_hfull)
     seed == first(SEEDS) && (histories["hard_full"] = hhfull)
 
+    log_hfull_cached = ProjectionLog()
+    thfull_cached = @elapsed begin
+        phfull_cached, hhfull_cached =
+            run_context_hard(p0, train_contexts_full, x,
+                             log_hfull_cached)
+    end
+    push!(times["hard_full_cached"], thfull_cached)
+    merge_log!(train_status["hard_full_cached"], log_hfull_cached)
+    seed == first(SEEDS) &&
+        (histories["hard_full_cached"] = hhfull_cached)
+
     log_cbb = ProjectionLog()
     tcbb = @elapsed pcbb, hcbb = run_soft_plus_hard(:boundary_box, p0,
                                                     train_data, x, w,
@@ -137,6 +169,18 @@ for seed in SEEDS
     push!(times["soft_plus_hard_full"], tcfull)
     merge_log!(train_status["soft_plus_hard_full"], log_cfull)
     seed == first(SEEDS) && (histories["soft_plus_hard_full"] = hcfull)
+
+    log_cfull_cached = ProjectionLog()
+    tcfull_cached = @elapsed begin
+        pcfull_cached, hcfull_cached =
+            run_context_soft_plus_hard(p0, train_contexts_full, x,
+                                       log_cfull_cached)
+    end
+    push!(times["soft_plus_hard_full_cached"], tcfull_cached)
+    merge_log!(train_status["soft_plus_hard_full_cached"],
+               log_cfull_cached)
+    seed == first(SEEDS) &&
+        (histories["soft_plus_hard_full_cached"] = hcfull_cached)
 
     push!(times["eval_only_full"], 0.0)
 
@@ -174,6 +218,14 @@ for seed in SEEDS
                              test_data, w))
     merge_log!(eval_status["hard_full"], eval_hfull_log)
 
+    eval_hfull_cached_log = ProjectionLog()
+    add_eval!("hard_full_cached",
+              evaluate_context_model(ctx -> context_projected_field(phfull_cached,
+                                                                    ctx, x,
+                                                                    log = eval_hfull_cached_log),
+                                     test_contexts_full))
+    merge_log!(eval_status["hard_full_cached"], eval_hfull_cached_log)
+
     eval_cbb_log = ProjectionLog()
     add_eval!("soft_plus_hard_boundary_box",
               evaluate_model(d -> hard_projected_field(pcbb, d, x, w,
@@ -189,6 +241,15 @@ for seed in SEEDS
                                                        mode = :full),
                              test_data, w))
     merge_log!(eval_status["soft_plus_hard_full"], eval_cfull_log)
+
+    eval_cfull_cached_log = ProjectionLog()
+    add_eval!("soft_plus_hard_full_cached",
+              evaluate_context_model(ctx -> context_projected_field(pcfull_cached,
+                                                                    ctx, x,
+                                                                    log = eval_cfull_cached_log),
+                                     test_contexts_full))
+    merge_log!(eval_status["soft_plus_hard_full_cached"],
+               eval_cfull_cached_log)
 end
 
 println("\n=== DeepONet helper study: mean +/- std over $(length(SEEDS)) seeds ===")

@@ -11,6 +11,19 @@ constraint = constraint_from_grid_and_sample(output_grid, sample_metadata)
 corrected = correct(constraint, raw)
 loss = supervised_loss(corrected, target)
 
+Recommended reusable pattern
+
+Build correction contexts once per sample when the grid and sample metadata are known.
+
+contexts = heat_correction_contexts(data, weights, mode = :full, cached = true)
+loss = context_hard_loss(params, contexts, output_grid)
+
+For a trained model, use the same contexts during evaluation.
+
+corrected = context_projected_field(params, context, output_grid)
+
+This avoids rebuilding the sparse constraint and its cached factorization inside every training step. It is the pattern to adapt once the summer DeepONet data structure is available.
+
 Useful constraints
 
 Boundary values are usually safe when the PDE case study has fixed Dirichlet values and the output vector includes boundary grid points. They can be represented by affine rows selecting the boundary entries.
@@ -26,6 +39,8 @@ Recommended summer integration
 Start with evaluation-time correction on a trained DeepONet. This gives a fast feasibility check without changing the training loop.
 
 Then add train-time correction through correct when the constraint is regular and the output shape is stable.
+
+For train-time correction, prefer prebuilt cached contexts when the same sample appears across epochs.
 
 Always log projection status, correction norm, RMSE, boundary violation, bound violation, and any integral-balance violation.
 

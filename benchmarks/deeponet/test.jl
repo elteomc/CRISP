@@ -51,6 +51,13 @@ using Test, Random, Zygote
     @test upper_violation(hb, 2.0) < 1e-12
     @test get(boundary_only_log.counts, :success, 0) == 1
 
+    ctx = heat_correction_context(data[1], w, mode = :full,
+                                  cached = true)
+    ctx_log = ProjectionLog()
+    hp_ctx = context_projected_field(p, ctx, x, log = ctx_log)
+    @test isapprox(hp_ctx, hp, rtol = 1e-10, atol = 1e-10)
+    @test get(ctx_log.counts, :success, 0) == 1
+
     g = Zygote.gradient(pp -> hard_loss(pp, data, x, w), p)[1]
     @test all(isfinite, g.Wb1)
     @test all(isfinite, g.Wt1)
@@ -64,6 +71,12 @@ using Test, Random, Zygote
     train_log = ProjectionLog()
     ph, hh = train!(pp -> hard_loss(pp, data, x, w, log = train_log), p0,
                     steps = 25, lr = 8e-3)
+    contexts = heat_correction_contexts(data, w, mode = :full,
+                                        cached = true)
+    context_log = ProjectionLog()
+    phc, hhc = train!(pp -> context_hard_loss(pp, contexts, x,
+                                              log = context_log),
+                      p0, steps = 25, lr = 8e-3)
     combo_log = ProjectionLog()
     pc, hc = train!(pp -> soft_plus_hard_loss(pp, data, x, w,
                                               log = combo_log),
@@ -72,19 +85,25 @@ using Test, Random, Zygote
     @test hv[end] < hv[1]
     @test hs[end] < hs[1]
     @test hh[end] < hh[1]
+    @test hhc[end] < hhc[1]
     @test hc[end] < hc[1]
     @test get(train_log.counts, :success, 0) == length(data) * 25
+    @test get(context_log.counts, :success, 0) == length(data) * 25
     @test get(combo_log.counts, :success, 0) == length(data) * 25
 
     ev = evaluate_model(d -> deeponet_model(pv, d.theta, x), data, w)
     es = evaluate_model(d -> deeponet_model(ps, d.theta, x), data, w)
     eh = evaluate_model(d -> hard_projected_field(ph, d, x, w), data, w)
+    ehc = evaluate_context_model(ctx -> context_projected_field(phc, ctx, x),
+                                 contexts)
     ec = evaluate_model(d -> hard_projected_field(pc, d, x, w), data, w)
-    @test all(isfinite, (ev.rmse, es.rmse, eh.rmse, ec.rmse))
+    @test all(isfinite, (ev.rmse, es.rmse, eh.rmse, ehc.rmse, ec.rmse))
     @test eh.boundary_max < 1e-9
     @test eh.mass_max < 1e-9
     @test eh.lower_max < 1e-12
     @test eh.upper_max < 1e-12
+    @test ehc.boundary_max < 1e-9
+    @test ehc.mass_max < 1e-9
     @test ec.boundary_max < 1e-9
     @test ec.mass_max < 1e-9
 
@@ -128,7 +147,10 @@ end
     data, x, w = sample_heat_operator(3, K, rng = rng)
     p = init_deeponet(width = 10, rank = 6, seed = 25)
     L(pp) = hard_loss(pp, data, x, w)
+    contexts = heat_correction_contexts(data, w, cached = true)
+    Lctx(pp) = context_hard_loss(pp, contexts, x)
     g = Zygote.gradient(L, p)[1]
+    gctx = Zygote.gradient(Lctx, p)[1]
 
     function perturb(q, field, ci, h)
         r = deepcopy(q)
@@ -146,5 +168,9 @@ end
               L(perturb(p, field, ci, -h))) / (2h)
         @test isapprox(getfield(g, field)[ci], fd, rtol = 2e-4,
                        atol = 1e-8)
+        fdctx = (Lctx(perturb(p, field, ci, h)) -
+                 Lctx(perturb(p, field, ci, -h))) / (2h)
+        @test isapprox(getfield(gctx, field)[ci], fdctx,
+                       rtol = 2e-4, atol = 1e-8)
     end
 end

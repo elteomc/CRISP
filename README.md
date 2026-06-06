@@ -61,6 +61,7 @@ Larger PDE integrations, 3 seeds:
 DeepONet-style heat operator, 10 seeds:
 
 - Full hard-corrected RMSE is `0.0248`, with boundary and mass violations at numerical precision.
+- Cached full hard correction matches the uncached full hard metrics and reduces the mean training time in this small run.
 - Full soft-plus-hard RMSE is `0.0456`, also with boundary and mass violations at numerical precision.
 - Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing boundary and mass constraints.
 - Vanilla RMSE is `0.0573`, with maximum boundary error `0.1879` and maximum mass error `0.0458`.
