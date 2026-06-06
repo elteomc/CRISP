@@ -28,7 +28,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - `benchmarks/deeponet` now implements a small DeepONet-style heat-operator benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard paths.
 - The DeepONet helper test passes, including finite-difference checks through the hard-corrected loss.
 - The first 10 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0248`. Cached full hard correction matches the uncached metrics and reduces mean training time in this small run. Full soft-plus-hard also enforces feasibility with RMSE `0.0456`. Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
-- Remaining M6 work: deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
+- Remaining M6 work: summer adapter integration, deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
 
@@ -49,6 +49,11 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added DeepONet helper plots for RMSE, feasibility, runtime, and correction norm.
 - Added `benchmarks/deeponet/helper_note.txt` with the generic integration pattern for the summer DeepONet project.
 - Generated DeepONet helper study CSVs. In the current 10 seed run, full hard correction has RMSE `0.0248` with exact boundary and mass feasibility, cached full hard correction matches those metrics, full soft-plus-hard has RMSE `0.0456` with exact feasibility, evaluation-only full correction has RMSE `0.0447`, vanilla has RMSE `0.0573`, and the best soft row by RMSE has RMSE `0.0610`.
+- Added `benchmarks/deeponet/large_study.jl` for K=64 and K=96 helper scaling runs.
+- Added `benchmarks/deeponet/profile_projection.jl` for raw, uncached, cached, context-based, and context-construction timing.
+- Added `benchmarks/deeponet/eval_only_example.jl` for correcting a trained vanilla DeepONet surrogate at evaluation time.
+- Added `benchmarks/deeponet/summary.jl`, which writes a report-facing `summary.txt` from existing DeepONet helper artifacts.
+- Generated the large-grid helper artifacts. In the current 5 seed run, K=64 cached full hard correction has RMSE `0.0272` and mean training time `1.15` seconds, while K=96 cached full hard correction has RMSE `0.0247` and mean training time `2.06` seconds. Both enforce boundary and mass constraints to numerical precision.
 - Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
 - Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
 - Added `BoxConstraint` for componentwise bounds and integrated it into the field benchmark as a bounded-output baseline.
@@ -119,6 +124,10 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/DeepONetHeat.jl`: DeepONet-style branch/trunk heat-operator model, synthetic heat data, boundary and full boundary-mass-box constraints, prebuilt cached correction contexts, vanilla, soft, hard, and soft-plus-hard losses, training, status logging, correction norms, and metrics.
 - `benchmarks/deeponet/test.jl`: helper benchmark harness, projection feasibility checks, Zygote gradient checks, training checks, and finite-difference checks through the hard-corrected loss.
 - `benchmarks/deeponet/study.jl`: 10 seed helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`.
+- `benchmarks/deeponet/large_study.jl`: larger-grid helper study for K=64 and K=96.
+- `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
+- `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
+- `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.
 - `benchmarks/deeponet/plots.jl`: plots helper RMSE, feasibility, runtime, and correction-norm artifacts from study CSVs.
 - `benchmarks/deeponet/helper_note.txt`: short integration note for applying StructPINN to summer DeepONet outputs.
 

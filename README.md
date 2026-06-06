@@ -67,6 +67,13 @@ DeepONet-style heat operator, 10 seeds:
 - Vanilla RMSE is `0.0573`, with maximum boundary error `0.1879` and maximum mass error `0.0458`.
 - The best soft-penalty sweep row by RMSE is `0.0610`, and none of the soft rows enforces boundary or mass constraints exactly.
 
+DeepONet larger-grid helper, 5 seeds:
+
+- At K=64, cached full hard correction has RMSE `0.0272`, exact boundary and mass feasibility, and mean training time `1.15` seconds.
+- At K=96, cached full hard correction has RMSE `0.0247`, exact boundary and mass feasibility, and mean training time `2.06` seconds.
+- Evaluation-only full correction improves vanilla predictions while enforcing constraints without retraining.
+- The projection profile reports raw, uncached, cached, context-based, and context-construction timings for K=32, K=64, and K=96.
+
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
 
 ## Repository Map
@@ -117,6 +124,10 @@ DeepONet helper:
 
 ```powershell
 julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/large_study.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
 ```
 
