@@ -134,6 +134,17 @@ open(joinpath(OUT, "summary.txt"), "w") do io
                     fmt(cell(row, names, "massmax_mean")))
         end
     end
+
+    sparse_path = joinpath(OUT, "sparse_decision.csv")
+    if isfile(sparse_path)
+        data, names = table(sparse_path)
+        println(io)
+        println(io, "Sparse optimization decision")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "metric")]),
+                    ": ", string(data[i, col(names, "value")]))
+        end
+    end
 end
 
 println("wrote summary.txt to ", OUT)

@@ -34,10 +34,10 @@ end
 
 function csv_line(io, cells)
     fields = string.(cells)
-    if length(fields) < 7
-        fields = vcat(fields, fill("", 7 - length(fields)))
+    if length(fields) < 8
+        fields = vcat(fields, fill("", 8 - length(fields)))
     end
-    println(io, join(fields[1:7], ","))
+    println(io, join(fields[1:8], ","))
 end
 
 function md_header(io, cells)
@@ -132,28 +132,41 @@ function write_eval_table(io, csvio)
     end
 end
 
-function write_status_table(io, csvio)
-    path = joinpath(OUT, "statuses.csv")
+function status_row(data, names, i, source)
+    label = source
+    if "grid" in names
+        label = "$(source) K=$(Int(data[i, col(names, "grid")]))"
+    end
+    return [label, String(data[i, col(names, "phase")]),
+            String(data[i, col(names, "model")]),
+            String(data[i, col(names, "status")]),
+            Int(data[i, col(names, "count")]),
+            fmt(data[i, col(names, "correction_mean")]),
+            fmt(data[i, col(names, "correction_max")])]
+end
+
+function write_status_source(io, csvio, filename, source)
+    path = joinpath(OUT, filename)
     isfile(path) || return nothing
     data, names = table(path)
-    println(io)
-    println(io, "## Status And Correction Norms")
-    println(io)
-    md_header(io, ["phase", "model", "status", "count",
-                   "correction mean", "correction max"])
-    keep = ("eval_only_full", "hard_full_cached",
-            "soft_plus_hard_full_cached")
     for i in axes(data, 1)
-        model = String(data[i, col(names, "model")])
-        model in keep || continue
-        row = [String(data[i, col(names, "phase")]), model,
-               String(data[i, col(names, "status")]),
-               Int(data[i, col(names, "count")]),
-               fmt(data[i, col(names, "correction_mean")]),
-               fmt(data[i, col(names, "correction_max")])]
+        row = status_row(data, names, i, source)
         md_line(io, row)
         csv_line(csvio, vcat(["status"], row))
     end
+    return nothing
+end
+
+function write_status_table(io, csvio)
+    println(io)
+    println(io, "## Status And Correction Norm Diagnostics")
+    println(io)
+    md_header(io, ["source", "phase", "model", "status", "count",
+                   "correction mean", "correction max"])
+    write_status_source(io, csvio, "statuses.csv", "main")
+    write_status_source(io, csvio, "frequency_statuses.csv", "frequency")
+    write_status_source(io, csvio, "constraint_statuses.csv", "constraint")
+    write_status_source(io, csvio, "large_statuses.csv", "large")
     println(io)
     return nothing
 end
@@ -200,9 +213,26 @@ function write_constraint_table(io, csvio)
     return nothing
 end
 
+function write_sparse_decision_table(io, csvio)
+    path = joinpath(OUT, "sparse_decision.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Sparse Optimization Decision")
+    println(io)
+    md_header(io, ["metric", "value"])
+    for i in axes(data, 1)
+        row = [string(data[i, col(names, "metric")]),
+               string(data[i, col(names, "value")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["sparse_decision"], row))
+    end
+    println(io)
+    return nothing
+end
+
 open(joinpath(OUT, "report_table.csv"), "w") do csvio
     csv_line(csvio, ["section", "field1", "field2", "field3", "field4",
-                     "field5", "field6"])
+                     "field5", "field6", "field7"])
     open(joinpath(OUT, "report_table.md"), "w") do io
         println(io, "# DeepONet Helper Report Tables")
         println(io)
@@ -213,6 +243,7 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_status_table(io, csvio)
         write_frequency_table(io, csvio)
         write_constraint_table(io, csvio)
+        write_sparse_decision_table(io, csvio)
     end
 end
 

@@ -76,6 +76,7 @@ DeepONet larger-grid helper, 5 seeds:
 - Evaluation-only full correction improves vanilla predictions while enforcing constraints without retraining.
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for K=32, K=64, and K=96.
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
+- A sparse optimization decision script reads the current DeepONet projection profile and larger-grid timings. The current decision is to defer solver-internal sparse work until larger outputs or the summer interface make projection the measured bottleneck.
 - A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
@@ -133,6 +134,7 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/profile_projection.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/eval_only_example.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_decision.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/report_table.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl

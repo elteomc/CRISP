@@ -30,6 +30,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The first 10 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0248`. Cached full hard correction matches the uncached metrics and reduces mean training time from `1.09` to `0.80` seconds in this small run. Full soft-plus-hard also enforces feasibility with RMSE `0.0456`. Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
 - The DeepONet helper now exposes generic adapter helpers so a fixed-grid operator surrogate can supply linear equality rows, per-sample equality values, bounds, and raw output vectors without using the synthetic heat sample type.
 - The DeepONet helper now has projection-frequency and constraint-family ablation scripts. The constraint-family script treats box-only correction as evaluation-only in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
+- The DeepONet helper report tables now collect status counts and correction norms across the main, frequency, constraint-family, and larger-grid status files.
+- The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and defer deeper sparse solver work until larger outputs or the summer interface make projection the measured bottleneck.
 - Remaining M6 work: connect these adapter helpers to the summer data interface, deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
@@ -63,6 +65,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/constraint_ablation.jl`, which compares boundary-only, box-only, mass-only, boundary-box, and full correction families.
 - Added a mock summer-sample adapter fixture to the DeepONet helper tests so the generic context path is checked without depending on unfinished group code.
 - Updated the DeepONet plots and report tables with ablation rows, status counts, correction norms, and a compact SVG report bundle.
+- Added `benchmarks/deeponet/sparse_decision.jl`, which writes a report-facing decision on whether sparse solver internals deserve more work now.
+- Expanded `benchmarks/deeponet/report_table.jl` so status and correction-norm diagnostics include the main, frequency, constraint, and larger-grid status artifacts.
 - Updated the helper note with the summer adapter pattern.
 - Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
 - Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
@@ -137,6 +141,7 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/large_study.jl`: larger-grid helper study for K=64 and K=96.
 - `benchmarks/deeponet/frequency_ablation.jl`: projection-frequency ablation for no correction, evaluation-only correction, every-step correction, and every-N-step correction.
 - `benchmarks/deeponet/constraint_ablation.jl`: constraint-family ablation for boundary-only, box-only, mass-only, boundary-box, and full correction modes.
+- `benchmarks/deeponet/sparse_decision.jl`: sparse optimization decision gate from projection profile and larger-grid timing artifacts.
 - `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
 - `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
 - `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.
