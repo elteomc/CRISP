@@ -308,6 +308,27 @@ function write_stress_table(io, csvio)
     return nothing
 end
 
+function write_failure_mode_table(io, csvio)
+    path = joinpath(OUT, "failure_mode_summary.csv")
+    isfile(path) || return nothing
+    data, names = table(path)
+    println(io, "## Failure Mode Figure Data")
+    println(io)
+    md_header(io, ["case", "status", "expected", "pass",
+                   "correction norm"])
+    for i in axes(data, 1)
+        row = [String(data[i, col(names, "label")]),
+               String(data[i, col(names, "status")]),
+               String(data[i, col(names, "expected")]),
+               string(data[i, col(names, "pass")]),
+               fmt(data[i, col(names, "correction_norm")])]
+        md_line(io, row)
+        csv_line(csvio, vcat(["failure_mode"], row))
+    end
+    println(io)
+    return nothing
+end
+
 function write_interpretation_table(io, csvio)
     path = joinpath(OUT, "ablation_interpretation.csv")
     isfile(path) || return nothing
@@ -342,6 +363,7 @@ open(joinpath(OUT, "report_table.csv"), "w") do csvio
         write_constraint_audit_table(io, csvio)
         write_sparse_decision_table(io, csvio)
         write_stress_table(io, csvio)
+        write_failure_mode_table(io, csvio)
         write_interpretation_table(io, csvio)
     end
 end

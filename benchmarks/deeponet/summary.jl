@@ -198,6 +198,19 @@ open(joinpath(OUT, "summary.txt"), "w") do io
         end
     end
 
+    failure_path = joinpath(OUT, "failure_mode_summary.csv")
+    if isfile(failure_path)
+        data, names = table(failure_path)
+        println(io)
+        println(io, "Failure-mode figure")
+        for i in axes(data, 1)
+            println(io, "  ", string(data[i, col(names, "label")]),
+                    ": ", string(data[i, col(names, "status")]),
+                    " norm ",
+                    fmt(data[i, col(names, "correction_norm")]))
+        end
+    end
+
     interpretation_path = joinpath(OUT, "ablation_interpretation.csv")
     if isfile(interpretation_path)
         data, names = table(interpretation_path)

@@ -77,6 +77,11 @@ rationale =
     "Cached context projection is sub-millisecond at the profiled grids and the remaining overhead is not yet the dominant DeepONet result bottleneck." :
     "Projection overhead is large enough that larger-grid profiling should happen before adding more experiments."
 
+next_action =
+    decision == "defer_sparse_internals" ?
+    "Keep the cached context path as the default and defer solver-internal sparse work until a summer-sized interface or larger output grid makes projection the measured bottleneck." :
+    "Keep cached contexts as the default for current experiments, but profile larger outputs before committing to more result runs or solver-internal work."
+
 open(joinpath(OUT, "sparse_decision.csv"), "w") do io
     println(io, "metric,value")
     println(io, "decision,$decision")
@@ -109,7 +114,7 @@ open(joinpath(OUT, "sparse_decision.md"), "w") do io
     println(io, "Mean uncached-to-cached hard-training speedup: ",
             fmt(mean_train_speedup), ".")
     println(io)
-    println(io, "Next action: keep the cached context path as the default and defer solver-internal sparse work until a summer-sized interface or larger output grid makes projection the measured bottleneck.")
+    println(io, "Next action: ", next_action)
 end
 
 println("wrote sparse_decision.md and sparse_decision.csv to ", OUT)

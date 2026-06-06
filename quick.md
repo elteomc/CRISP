@@ -33,10 +33,11 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper now has a mock summer adapter example, stress diagnostics, and an ablation interpretation generator.
 - The DeepONet helper now has a tracked constraint-selection guide for deciding when boundary, box, positivity, and balance correction are justified.
 - The DeepONet helper now has a tracked summer integration checklist and a constraint audit script for mock or CSV sample metadata.
+- The DeepONet helper now has a failure-mode figure generator and a tracked paper-results manifest.
 - The DeepONet helper report tables now collect status counts and correction norms across the main, frequency, constraint-family, and larger-grid status files.
 - The report diagnostics now classify correction norms into warning bands so large successful corrections are not hidden.
 - The DeepONet report bundle SVG now includes main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
-- The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and defer deeper sparse solver work until larger outputs or the summer interface make projection the measured bottleneck.
+- The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and profile larger outputs before choosing more result runs or solver-internal sparse work.
 - Remaining M6 work: connect these adapter helpers to the summer data interface, deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
 
 ## Open Questions
@@ -74,6 +75,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/constraint_selection_guide.md`, which gives the summer project rules for choosing physically justified correction constraints.
 - Added `benchmarks/deeponet/summer_integration_checklist.md`, which lists the output shape, grid, metadata, units, bounds, balance, hook, and logging information needed from the group DeepONet code.
 - Added `benchmarks/deeponet/constraint_audit.jl`, which audits available sample metadata and recommends an initial correction mode.
+- Added `benchmarks/deeponet/failure_mode_plots.jl`, which writes a compact failure-mode CSV and SVG from stress diagnostics.
+- Added `benchmarks/deeponet/paper_results_manifest.md`, which maps DeepONet commands to artifacts and supported claims.
 - Added a mock summer-sample adapter fixture to the DeepONet helper tests so the generic context path is checked without depending on unfinished group code.
 - Updated the DeepONet plots and report tables with ablation rows, status counts, correction norms, and a compact SVG report bundle.
 - Expanded `benchmarks/deeponet/plots.jl` so `deeponet_report_bundle.svg` includes sparse-decision and status/correction-norm panels.
@@ -161,6 +164,8 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/constraint_selection_guide.md`: guide for choosing physically justified constraints for summer DeepONet outputs.
 - `benchmarks/deeponet/summer_integration_checklist.md`: checklist for integrating StructPINN with the group DeepONet code.
 - `benchmarks/deeponet/constraint_audit.jl`: metadata audit for mock or CSV sample batches.
+- `benchmarks/deeponet/failure_mode_plots.jl`: failure-mode CSV and SVG generator from stress diagnostics.
+- `benchmarks/deeponet/paper_results_manifest.md`: map from commands and artifacts to report and paper claims.
 - `benchmarks/deeponet/profile_projection.jl`: projection runtime profile for raw, uncached, cached, context-based, and construction paths.
 - `benchmarks/deeponet/eval_only_example.jl`: example of applying full correction only at evaluation time.
 - `benchmarks/deeponet/summary.jl`: text summary generator for DeepONet helper artifacts.
