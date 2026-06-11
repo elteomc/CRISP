@@ -12,6 +12,7 @@ using LinearAlgebra, Random, SparseArrays, Statistics, Zygote, StructPINN
 
 export FailureCounter, record!,
        grid, periodic_grid, trapezoid_weights, periodic_weights, mass, sample_fields,
+       stress_field, sample_stress_fields,
        heat_field, sample_heat_fields, burgers_field, sample_burgers_fields,
        allen_cahn_field, sample_allen_cahn_fields,
        init_mlp, field_model, vanilla_loss, soft_loss,
@@ -66,6 +67,20 @@ function target_field(x, theta)
     shape = 0.35 * b .* sin.(2pi .* x) .+ 0.20 * c .* cos.(4pi .* x)
     bump = 0.15 * a * b .* sin.(pi .* x)
     return baseline .+ shape .+ bump
+end
+
+# Harder stress family for the fixed-grid benchmark: higher-frequency content,
+# a sharp moving bump, and amplitudes that push the target against the [0, 2]
+# box. Targets are clamped to a thin margin inside the bounds, so every target
+# stays feasible for `{w' z = mass0, 0 <= z <= 2}` while bound-active behavior
+# becomes common in raw model outputs.
+function stress_field(x, theta; lower = 0.02, upper = 1.98)
+    a, b, c = theta
+    baseline = 1.0 + 0.55 * a
+    shape = 0.70 * b .* sin.(2pi .* x) .+ 0.45 * c .* cos.(6pi .* x)
+    center = 0.5 + 0.3 * a
+    bump = 0.55 .* exp.(-((x .- center) .^ 2) ./ (2 * 0.03^2))
+    return clamp.(baseline .+ shape .+ bump, lower, upper)
 end
 
 function heat_field(x, theta; diffusivity = 0.05)
@@ -139,6 +154,18 @@ function sample_fields(N, K; rng = Random.default_rng())
     for _ in 1:N
         theta = 2 .* rand(rng, 3) .- 1
         u = target_field(x, theta)
+        push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
+    end
+    return data, x, w
+end
+
+function sample_stress_fields(N, K; rng = Random.default_rng())
+    x = grid(K)
+    w = trapezoid_weights(x)
+    data = NamedTuple[]
+    for _ in 1:N
+        theta = 2 .* rand(rng, 3) .- 1
+        u = stress_field(x, theta)
         push!(data, (theta = theta, u = u, mass0 = mass(u, w)))
     end
     return data, x, w

@@ -18,6 +18,11 @@ using Test, Random, Zygote
     @test pde.steps >= 50
     @test pde.train_samples > pde.test_samples
 
+    stress = stress_study_scenario()
+    @test length(stress.seeds) >= 5
+    @test stress.steps >= 100
+    @test stress.soft_beta > 0
+
     withenv("STRUCTPINN_FIELD_STUDY_SEEDS" => "2:4",
             "STRUCTPINN_FIELD_STUDY_STEPS" => "30",
             "STRUCTPINN_FIELD_PDE_SEEDS" => "1,4") do
@@ -105,6 +110,47 @@ end
         sparse_bounded_projected_field(p, data[1].theta, w, data[1].mass0, 0.0, 2.0)
     @test all(0.0 .<= sparse_bounded_pred .<= 2.0)
     @test abs(mass(sparse_bounded_pred, w) - data[1].mass0) < 1e-9
+end
+
+@testset "M5 stress field family" begin
+    K = 48
+    rng = MersenneTwister(5)
+    data, x, w = sample_stress_fields(24, K; rng = rng)
+
+    @test length(data) == 24
+    near_lower = 0
+    near_upper = 0
+    sharper = 0
+    base_rng = MersenneTwister(5)
+    base, _, _ = sample_fields(24, K; rng = base_rng)
+    for (d, b) in zip(data, base)
+        @test length(d.u) == K
+        # Every stress target stays feasible for {w'z = mass0, 0 <= z <= 2}.
+        @test all(d.u .>= 0.02 - 1e-12)
+        @test all(d.u .<= 1.98 + 1e-12)
+        @test isapprox(mass(d.u, w), d.mass0; atol = 1e-12)
+        near_lower += minimum(d.u) < 0.1 ? 1 : 0
+        near_upper += maximum(d.u) > 1.9 ? 1 : 0
+        gradmax(u) = maximum(abs.(diff(u)))
+        sharper += gradmax(d.u) > gradmax(b.u) ? 1 : 0
+    end
+    # The family stresses the box: a good share of targets press against a
+    # bound, and the fields are sharper than the default family.
+    @test near_lower + near_upper >= 8
+    @test sharper >= 16
+
+    # Evaluation-only bound correction on an untrained model returns feasible
+    # fields and records statuses without claiming a training gradient.
+    p = init_mlp(nout = K, seed = 6)
+    fc = FailureCounter()
+    for d in data[1:4]
+        z = sparse_bounded_projected_field(p, d.theta, w, d.mass0, 0.0, 2.0;
+                                           fc = fc, failure_policy = :continue)
+        @test all(z .>= -1e-8)
+        @test all(z .<= 2.0 + 1e-8)
+        @test isapprox(mass(z, w), d.mass0; atol = 1e-6)
+    end
+    @test sum(values(fc.counts)) == 4
 end
 
 @testset "M5 comparison metrics" begin

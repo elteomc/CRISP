@@ -3,7 +3,8 @@
 # result scripts stay auditable without editing code.
 module FieldScenarios
 
-export field_results_dir, study_scenario, pde_study_scenario
+export field_results_dir, study_scenario, pde_study_scenario,
+       stress_study_scenario
 
 const DEFAULT_SOFT_CONFIGS = [
     (name = "soft_weak", beta = 5.0),
@@ -51,6 +52,19 @@ function study_scenario()
             test_samples =
                 env_int("STRUCTPINN_FIELD_STUDY_TEST_SAMPLES", 16),
             soft_configs = DEFAULT_SOFT_CONFIGS)
+end
+
+function stress_study_scenario()
+    return (name = :stress_study,
+            out = field_results_dir(),
+            grid = env_int("STRUCTPINN_FIELD_STRESS_GRID", 32),
+            seeds = env_int_vector("STRUCTPINN_FIELD_STRESS_SEEDS", 1:5),
+            steps = env_int("STRUCTPINN_FIELD_STRESS_STEPS", 250),
+            train_samples =
+                env_int("STRUCTPINN_FIELD_STRESS_TRAIN_SAMPLES", 32),
+            test_samples =
+                env_int("STRUCTPINN_FIELD_STRESS_TEST_SAMPLES", 16),
+            soft_beta = 20.0)
 end
 
 function pde_study_scenario()
