@@ -148,29 +148,38 @@ end
 # Projected rollout: after each RK4 step, project the state back onto H(z)=H0 via
 # the differentiable hard-constraint layer. Status logging is ignored by AD, while
 # the correction itself uses the custom rrule. Non-success statuses are flagged
-# before their gradients can enter training.
-function projected_rollout(p, z0, dt, nsteps, H0; fc = nothing, failure_policy = :error)
+# before their gradients can enter training. `project_every = n` projects only
+# every n-th step, which supports projection-frequency ablations.
+function projected_rollout(p, z0, dt, nsteps, H0; fc = nothing, failure_policy = :error,
+                           project_every = 1)
+    project_every >= 1 || error("project_every must be at least 1")
     ec = energy_constraint(H0)
     buf = Zygote.Buffer(z0, length(z0), nsteps + 1)
     buf[:, 1] = z0
     z = z0
     for k in 1:nsteps
         zr = rk4_step(zz -> field(p, zz), z, dt)
-        Zygote.ignore() do
-            _record_projection!(ec, zr, fc, failure_policy)
+        if k % project_every == 0
+            Zygote.ignore() do
+                _record_projection!(ec, zr, fc, failure_policy)
+            end
+            z = correct(ec, zr)
+        else
+            z = zr
         end
-        z = correct(ec, zr)
         buf[:, k + 1] = z
     end
     return copy(buf)
 end
 
-function projected_loss(p, data, dt; fc = nothing, failure_policy = :error)
+function projected_loss(p, data, dt; fc = nothing, failure_policy = :error,
+                        project_every = 1)
     s = 0.0
     for d in data
         nsteps = size(d.traj, 2) - 1
         pred = projected_rollout(p, d.z0, dt, nsteps, d.H0;
-                                 fc = fc, failure_policy = failure_policy)
+                                 fc = fc, failure_policy = failure_policy,
+                                 project_every = project_every)
         s += sum(abs2, pred .- d.traj)
     end
     return s / length(data)
@@ -178,15 +187,21 @@ end
 
 # Non-differentiable projected rollout that records each projection status into a
 # FailureCounter (I10). Used for evaluation, not training.
-function projected_rollout_status!(p, z0, dt, nsteps, H0, fc::FailureCounter)
+function projected_rollout_status!(p, z0, dt, nsteps, H0, fc::FailureCounter;
+                                   project_every = 1)
+    project_every >= 1 || error("project_every must be at least 1")
     ec = energy_constraint(H0)
     z = copy(z0)
     states = [copy(z)]
-    for _ in 1:nsteps
+    for k in 1:nsteps
         zr = rk4_step(zz -> field(p, zz), z, dt)
-        res = project(ec, zr)
-        record!(fc, res.status)
-        z = res.zstar
+        if k % project_every == 0
+            res = project(ec, zr)
+            record!(fc, res.status)
+            z = res.zstar
+        else
+            z = zr
+        end
         push!(states, copy(z))
     end
     return reduce(hcat, states)

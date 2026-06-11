@@ -1,6 +1,29 @@
 include("Pendulum.jl")
+include("PendulumScenarios.jl")
 using .Pendulum
+using .PendulumScenarios
 using Test, Random, Statistics, Zygote
+
+@testset "Pendulum scenario config" begin
+    study = study_scenario()
+    @test length(study.seeds) >= 10
+    @test study.steps >= 100
+    @test length(study.soft_configs) >= 3
+    @test allunique([c.name for c in study.soft_configs])
+
+    frequency = frequency_ablation_scenario()
+    @test length(frequency.seeds) >= 5
+    @test frequency.periods.every_step == 1
+    @test frequency.periods.every_5_steps == 5
+
+    withenv("STRUCTPINN_PENDULUM_STUDY_SEEDS" => "2:4",
+            "STRUCTPINN_PENDULUM_STUDY_STEPS" => "40",
+            "STRUCTPINN_PENDULUM_FREQUENCY_SEEDS" => "1,3") do
+        @test study_scenario().seeds == [2, 3, 4]
+        @test study_scenario().steps == 40
+        @test frequency_ablation_scenario().seeds == [1, 3]
+    end
+end
 
 @testset "M2 pendulum baseline harness" begin
     dt = 0.1
@@ -78,6 +101,49 @@ end
     @test hist[end] < hist[1]
     @test get(train_fc.counts, :success, 0) == length(data) * nobs * 40
     @test collect(keys(train_fc.counts)) == [:success]
+end
+
+@testset "M3 periodic projection rollout" begin
+    dt = 0.1
+    nobs = 20
+    rng = MersenneTwister(13)
+    data = sample_band(3, dt, nobs; rng = rng)
+    p = init_mlp(seed = 4)
+    d = data[1]
+
+    # Periodic projection records exactly one status per projected step.
+    fc = FailureCounter()
+    traj = projected_rollout_status!(p, d.z0, dt, nobs, d.H0, fc;
+                                     project_every = 5)
+    @test size(traj) == (2, nobs + 1)
+    @test get(fc.counts, :success, 0) == nobs ÷ 5
+
+    # Projected states sit on the energy manifold even between projections of a
+    # full-frequency rollout, while the periodic rollout only guarantees the
+    # projected steps.
+    for k in 1:nobs
+        if k % 5 == 0
+            @test abs(H(traj[:, k + 1]) - d.H0) < 1e-6
+        end
+    end
+
+    # project_every = 1 matches the default per-step projected rollout.
+    fc1 = FailureCounter()
+    full = projected_rollout_status!(p, d.z0, dt, nobs, d.H0, fc1;
+                                     project_every = 1)
+    fc0 = FailureCounter()
+    base = projected_rollout_status!(p, d.z0, dt, nobs, d.H0, fc0)
+    @test full == base
+
+    # Gradients flow through the periodic projected loss.
+    g = Zygote.gradient(pp -> projected_loss(pp, data, dt;
+                                             project_every = 2), p)[1]
+    @test all(isfinite, g.W1)
+    @test sum(abs, g.W1) > 0
+
+    @test_throws ErrorException projected_rollout_status!(p, d.z0, dt, nobs,
+                                                          d.H0, fc;
+                                                          project_every = 0)
 end
 
 @testset "M3 projected gradient vs finite differences" begin
