@@ -1,7 +1,8 @@
 module DeepONetScenarios
 
 export deeponet_results_dir, study_scenario, large_study_scenario,
-       profile_projection_scenario, frequency_ablation_scenario,
+       profile_projection_scenario, larger_profile_scenario,
+       expansion_gate_scenario, frequency_ablation_scenario,
        constraint_ablation_scenario, eval_only_scenario,
        scenario_rows, final_run_plan_rows, scenario_field
 
@@ -101,6 +102,41 @@ function profile_projection_scenario()
                 env_int("STRUCTPINN_DEEPONET_PROFILE_TRIALS", 4))
 end
 
+function larger_profile_scenario()
+    return (name = :larger_profile,
+            out = deeponet_results_dir(),
+            grids =
+                env_int_tuple("STRUCTPINN_DEEPONET_LARGER_PROFILE_GRIDS",
+                              (384, 512)),
+            samples =
+                env_int("STRUCTPINN_DEEPONET_LARGER_PROFILE_SAMPLES", 8),
+            repeats =
+                env_int("STRUCTPINN_DEEPONET_LARGER_PROFILE_REPEATS", 4),
+            trials =
+                env_int("STRUCTPINN_DEEPONET_LARGER_PROFILE_TRIALS", 3))
+end
+
+function env_bool(name, default)
+    haskey(ENV, name) || return default
+    value = lowercase(strip(ENV[name]))
+    return value in ("1", "true", "yes", "y")
+end
+
+function expansion_gate_scenario()
+    return (name = :expanded_seed_gate,
+            out = deeponet_results_dir(),
+            allow_synthetic =
+                env_bool("STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION",
+                         false),
+            require_summer =
+                env_bool("STRUCTPINN_DEEPONET_EXPANSION_REQUIRES_SUMMER",
+                         true),
+            main_seed_target =
+                env_int("STRUCTPINN_DEEPONET_EXPANDED_MAIN_SEEDS", 20),
+            large_seed_target =
+                env_int("STRUCTPINN_DEEPONET_EXPANDED_LARGE_SEEDS", 10))
+end
+
 function frequency_ablation_scenario()
     return (name = :frequency_ablation,
             out = deeponet_results_dir(),
@@ -150,6 +186,8 @@ function scenario_rows()
     study = study_scenario()
     large = large_study_scenario()
     profile = profile_projection_scenario()
+    larger_profile = larger_profile_scenario()
+    expansion = expansion_gate_scenario()
     frequency = frequency_ablation_scenario()
     constraint = constraint_ablation_scenario()
     eval_only = eval_only_scenario()
@@ -166,6 +204,16 @@ function scenario_rows()
          grids = format_ints(profile.grids), seeds = "",
          steps = "", train_samples = profile.samples,
          test_samples = ""),
+        (script = "profile_larger_outputs.jl",
+         scenario = string(larger_profile.name),
+         grids = format_ints(larger_profile.grids), seeds = "",
+         steps = "", train_samples = larger_profile.samples,
+         test_samples = ""),
+        (script = "expanded_seed_gate.jl",
+         scenario = string(expansion.name),
+         grids = "32 64 96", seeds =
+             "$(expansion.main_seed_target) main $(expansion.large_seed_target) large",
+         steps = "", train_samples = "", test_samples = ""),
         (script = "frequency_ablation.jl",
          scenario = string(frequency.name),
          grids = string(frequency.grid),
@@ -191,6 +239,8 @@ function final_run_plan_rows()
     study = study_scenario()
     large = large_study_scenario()
     profile = profile_projection_scenario()
+    larger_profile = larger_profile_scenario()
+    expansion = expansion_gate_scenario()
     return [
         (priority = 1, batch = "core_helper_10_seed",
          command = "julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl",
@@ -240,6 +290,20 @@ function final_run_plan_rows()
          test_samples = "",
          gate = "run before any solver-internal sparse optimization",
          purpose = "projection overhead decision evidence"),
+        (priority = 7, batch = "larger_output_sparse_profile",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/profile_larger_outputs.jl",
+         env = "", grids = format_ints(larger_profile.grids), seeds = "",
+         steps = "", train_samples = larger_profile.samples,
+         test_samples = "",
+         gate = "run before solver-internal sparse work when K=256 remains inconclusive",
+         purpose = "larger-output projection overhead decision evidence"),
+        (priority = 8, batch = "expanded_seed_gate",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/expanded_seed_gate.jl",
+         env = "", grids = "32 64 96",
+         seeds = "$(expansion.main_seed_target) main $(expansion.large_seed_target) large",
+         steps = "", train_samples = "", test_samples = "",
+         gate = "run before expanded seed-count result jobs",
+         purpose = "guard expanded main and larger-grid seed runs"),
     ]
 end
 

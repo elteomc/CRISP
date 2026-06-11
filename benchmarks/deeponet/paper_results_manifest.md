@@ -61,6 +61,24 @@ Supported claims:
 - Default profiling now includes larger output grids up to K=256.
 - Larger-output profiling should happen before choosing more result runs or solver-internal sparse work.
 
+## Larger Output Projection Profile
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/profile_larger_outputs.jl
+```
+
+Artifacts:
+
+- `larger_projection_profile.csv`
+
+Supported claims:
+
+- The sparse decision gate includes larger-output projection timings beyond K=256.
+- The current larger-output profile reaches K=512.
+- Cached context projection remains sub-millisecond in the current larger-output profile.
+
 ## Run Scenario Manifest
 
 Command:
@@ -78,6 +96,103 @@ Supported claims:
 
 - The DeepONet result-suite grids, seeds, steps, and sample counts are auditable before longer runs.
 - Environment overrides can change result-suite size without editing benchmark source files.
+
+## Summer Exported Batch Adapter
+
+Fixture command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/export_summer_batch_fixture.jl
+```
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_review.jl path\to\batch.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_eval.jl path\to\batch.csv
+```
+
+Artifacts:
+
+- `summer_batch_fixture.csv`
+- `summer_batch_review.csv`
+- `summer_batch_review.md`
+- `summer_batch_eval.csv`
+- `summer_batch_eval.md`
+
+Supported claims:
+
+- A file-backed summer batch can be corrected without depending on the synthetic heat sample type.
+- The adapter reports status counts, correction norms, RMSE, boundary violation, balance violation, and box violation when the relevant metadata is present.
+- The metadata review reports grid ordering, endpoint boundary consistency, target balance consistency, target bounds, source kind, and missing unit metadata.
+- The automatically selected mode is a starting point for physical review, not a final constraint decision.
+- The deterministic fixture is an adapter smoke test, not a real summer or geothermal result.
+
+## Summer Batch Training Gate
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_train.jl path\to\batch.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_training_decision.jl
+```
+
+Artifacts:
+
+- `summer_batch_training.csv`
+- `summer_batch_training.md`
+- `summer_batch_training_meta.csv`
+- `summer_training_decision.csv`
+- `summer_training_decision.md`
+
+Supported claims:
+
+- Batches with `features`, `target_output`, and `grid` can run the same evaluation-first workflow as the synthetic helper.
+- Train-time correction is attempted only after the held-out evaluation-only correction status gate passes.
+- The generated artifacts record raw model metrics, evaluation-only corrected metrics, train-time corrected metrics when run, status counts, correction norms, and the gate decision.
+- The metadata artifact records whether the source was a fixture or an exported batch, so fixture runs do not unlock expanded seed jobs.
+- The integration decision artifact blocks real-loop integration when the current evidence is only a fixture, when units need review, or when gates fail.
+
+## Expanded Seed Gate
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/expanded_seed_gate.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/run_expanded_seed_jobs.jl
+```
+
+Artifacts:
+
+- `expanded_seed_gate.csv`
+- `expanded_seed_gate.md`
+- `expanded_seed_run.csv`
+- `expanded_seed_run.md`
+
+Supported claims:
+
+- Expanded main and larger-grid seed runs are gated rather than automatic.
+- The gate requires core helper artifacts, larger-output sparse profiling, and a passed summer training gate unless an explicit synthetic override is set.
+- In the current workspace the gate is closed because no real summer training batch has passed the evaluation and train-time correction gates.
+- The guarded runner writes blocked rows instead of launching long jobs when the gate fails.
+
+## Sparse Internal Work Decision
+
+Command:
+
+```powershell
+julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_internal_work_decision.jl
+```
+
+Artifacts:
+
+- `sparse_internal_work_decision.csv`
+- `sparse_internal_work_decision.md`
+
+Supported claims:
+
+- Sparse solver-internal work is guarded by measured projection overhead.
+- The current action is to defer solver-internal work because cached contexts are not the measured bottleneck.
 
 ## Result Run Plan
 
@@ -294,7 +409,7 @@ Artifacts:
 
 Supported claims:
 
-- Current profiling says to profile larger outputs before choosing more result runs or solver-internal sparse work.
+- Current profiling includes larger-output rows through K=512 and supports deferring solver-internal sparse work until projection becomes a measured bottleneck.
 - Cached contexts should remain the default helper path.
 
 ## Report Tables And Figures

@@ -31,6 +31,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper now exposes generic adapter helpers so a fixed-grid operator surrogate can supply linear equality rows, per-sample equality values, bounds, and raw output vectors without using the synthetic heat sample type.
 - The DeepONet helper now has projection-frequency and constraint-family ablation scripts. The constraint-family script treats box-only correction as evaluation-only in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - The DeepONet helper now has a mock summer adapter example, stress diagnostics, and an ablation interpretation generator.
+- The DeepONet helper now has a file-backed exported-batch adapter, `benchmarks/deeponet/summer_batch_eval.jl`, which reads summer-style CSV batches, builds generic correction contexts, runs evaluation-only correction, and writes status, correction-norm, RMSE, boundary, balance, and box diagnostics.
+- The DeepONet helper now has a gated exported-batch training workflow, `benchmarks/deeponet/summer_batch_train.jl`, which trains a vanilla DeepONet-style model, applies evaluation-only correction on held-out rows, checks the projection success-rate gate, and trains through cached correction contexts only after the gate passes.
+- The DeepONet helper now has `benchmarks/deeponet/export_summer_batch_fixture.jl`, a deterministic summer-schema CSV fixture for adapter smoke tests when no real summer batch is present.
 - The DeepONet helper now has a tracked constraint-selection guide for deciding when boundary, box, positivity, and balance correction are justified.
 - The DeepONet helper now has a tracked summer integration checklist and a constraint audit script for mock or CSV sample metadata.
 - The DeepONet helper now has a failure-mode figure generator and a tracked paper-results manifest.
@@ -40,8 +43,10 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet helper report tables now collect status counts and correction norms across the main, frequency, constraint-family, and larger-grid status files.
 - The report diagnostics now classify correction norms into warning bands so large successful corrections are not hidden.
 - The DeepONet report bundle SVG now includes main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
-- The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and profile larger outputs before choosing more result runs or solver-internal sparse work.
-- Remaining M6 work: connect these adapter helpers to the summer data interface, deeper performance studies, broader seed counts, harder PDE families, and paper writeup polishing.
+- The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and defer solver-internal sparse work until a real bottleneck appears.
+- The DeepONet helper now has larger-output projection profiling through K=512. The updated sparse decision is `defer_sparse_internals_until_real_bottleneck`, because cached context projection remains sub-millisecond in the current larger-output profile.
+- The DeepONet helper now has an expanded-seed gate. It allows 20 seed main and 10 seed larger-grid runs only after core artifacts, larger-output sparse profiling, and the summer training gate pass.
+- Remaining M6 work: replace the deterministic fixture with the first real summer batch, review the chosen correction mode against the physical metadata, then unlock broader seed counts only if the expanded-seed gate passes.
 
 ## Open Questions
 
@@ -73,6 +78,13 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/frequency_ablation.jl`, which compares no correction, evaluation-only correction, every-step training correction, and every-N-step training correction.
 - Added `benchmarks/deeponet/constraint_ablation.jl`, which compares boundary-only, box-only, mass-only, boundary-box, and full correction families.
 - Added `benchmarks/deeponet/summer_adapter_example.jl`, which demonstrates a mock geothermal-style sample shape with generic correction contexts.
+- Added `benchmarks/deeponet/summer_batch_eval.jl`, which reads exported CSV batches with raw outputs, optional targets, grid or weights, boundary values, balance values, and bounds, then writes evaluation-only correction diagnostics.
+- Added `benchmarks/deeponet/summer_batch_train.jl`, which reads exported CSV batches with features, targets, grid metadata, and correction metadata, then runs vanilla training, evaluation-only correction, and gated train-time correction.
+- Added and ran `benchmarks/deeponet/export_summer_batch_fixture.jl`, which writes `summer_batch_fixture.csv` in the expected adapter schema.
+- Ran `constraint_audit.jl` and `summer_batch_eval.jl` on `summer_batch_fixture.csv`. The audit selected `full_boundary_balance_box` for all 12 rows, and evaluation returned 12 `:success` statuses with corrected boundary, balance, and box violations at numerical precision.
+- Added and ran `benchmarks/deeponet/summer_batch_review.jl` on `summer_batch_fixture.csv`. Grid ordering, boundary endpoint semantics, balance metadata, and bounds passed. Units remain marked for review because the CSV schema does not encode physical units.
+- Ran `benchmarks/deeponet/summer_batch_train.jl` on `summer_batch_fixture.csv`. The fixture evaluation gate passed with success rate 1, and train-time correction ran. The artifact is marked `source_kind=fixture`, so `expanded_seed_gate.jl` remains closed for real seed expansion.
+- Added and ran `benchmarks/deeponet/summer_training_decision.jl`. The fixture decision is `wait_for_real_export`: train-time correction is promising on the fixture, but it should not be integrated into the real training loop until an exported summer batch passes the same gate.
 - Added `benchmarks/deeponet/stress_diagnostics.jl`, which checks infeasible balance, large correction norm, box-only kink, and malformed adapter-row cases.
 - Added `benchmarks/deeponet/ablation_interpretation.jl`, which writes report-facing takeaways from the DeepONet ablation CSVs.
 - Added `benchmarks/deeponet/constraint_selection_guide.md`, which gives the summer project rules for choosing physically justified correction constraints.
@@ -90,8 +102,18 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Expanded `benchmarks/deeponet/plots.jl` so `deeponet_report_bundle.svg` includes sparse-decision and status/correction-norm panels.
 - Extended report status diagnostics with correction-norm warning bands.
 - Added `benchmarks/deeponet/sparse_decision.jl`, which writes a report-facing decision on whether sparse solver internals deserve more work now.
+- Added `benchmarks/deeponet/profile_larger_outputs.jl`, which profiles cached and uncached projection overhead at larger output sizes.
+- Added `benchmarks/deeponet/expanded_seed_gate.jl`, which guards 20 seed main and 10 seed larger-grid expansion runs.
+- Added `benchmarks/deeponet/run_expanded_seed_jobs.jl`, which launches expanded seed jobs only when `expanded_seed_gate.jl` passes. The current run wrote blocked rows for both expanded jobs because the source is still a fixture.
+- Added `benchmarks/deeponet/sparse_internal_work_decision.jl`, which turns sparse profiling into an action artifact. The current action is `defer_solver_internal_work`.
+- Generated `larger_projection_profile.csv`, regenerated `sparse_decision.csv`, `sparse_decision.md`, `run_scenarios.csv`, `result_run_plan.csv`, and wrote `expanded_seed_gate.csv` plus `expanded_seed_gate.md`.
+- The current expanded-seed gate is intentionally closed because no real `summer_batch_training.csv` has passed the evaluation and train-time correction gates yet.
 - Expanded `benchmarks/deeponet/report_table.jl` so status and correction-norm diagnostics include the main, frequency, constraint, and larger-grid status artifacts.
 - Updated the helper note with the summer adapter pattern.
+- Updated `PLAN.md`, `helper_note.txt`, `summer_integration_checklist.md`, and `paper_results_manifest.md` with the exported-batch adapter path.
+- Verified `julia --project=benchmarks/deeponet benchmarks/deeponet/test.jl`, including exported-batch adapter and gated train-time correction coverage.
+- Verified `julia --project=benchmarks/field benchmarks/field/test.jl`, `julia --project=benchmarks/pendulum benchmarks/pendulum/test.jl`, and Julia package tests through `Pkg.test()`.
+- Ran `julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_audit.jl` on the built-in mock batch and `julia --project=benchmarks/deeponet benchmarks/deeponet/verify_report_artifacts.jl`.
 - Added `DiagonalWeightedAffineConstraint` for weighted affine projection.
 - Integrated weighted affine projection into the field benchmark as a physically weighted mass-correction baseline.
 - Added `BoxConstraint` for componentwise bounds and integrated it into the field benchmark as a bounded-output baseline.

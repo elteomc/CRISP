@@ -1,5 +1,8 @@
 include("DeepONetHeat.jl")
 include("DeepONetScenarios.jl")
+include("summer_batch_eval.jl")
+include("summer_batch_train.jl")
+include("summer_batch_review.jl")
 using .DeepONetHeat
 using .DeepONetScenarios
 using StructPINN: project
@@ -8,25 +11,36 @@ using Test, Random, Zygote, LinearAlgebra
 @testset "DeepONet helper scenario config" begin
     study = study_scenario()
     profile = profile_projection_scenario()
+    larger_profile = larger_profile_scenario()
+    expansion = expansion_gate_scenario()
     large = large_study_scenario()
 
     @test study.grid == 32
     @test first(study.seeds) == 1
     @test length(study.soft_configs) >= 4
     @test maximum(profile.grids) >= 256
+    @test minimum(larger_profile.grids) > maximum(profile.grids)
     @test profile.samples > 0
     @test profile.repeats > 0
+    @test larger_profile.samples > 0
+    @test expansion.main_seed_target >= 20
+    @test expansion.large_seed_target >= 10
     @test large.grids == (64, 96)
-    @test length(scenario_rows()) >= 6
+    @test length(scenario_rows()) >= 8
     run_plan = final_run_plan_rows()
-    @test length(run_plan) >= 6
+    @test length(run_plan) >= 8
     @test run_plan[1].batch == "core_helper_10_seed"
     @test occursin("1:20", run_plan[4].env)
+    @test run_plan[end].batch == "expanded_seed_gate"
 
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8,16",
-            "STRUCTPINN_DEEPONET_STUDY_SEEDS" => "2:4") do
+            "STRUCTPINN_DEEPONET_LARGER_PROFILE_GRIDS" => "24 32",
+            "STRUCTPINN_DEEPONET_STUDY_SEEDS" => "2:4",
+            "STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION" => "true") do
         @test profile_projection_scenario().grids == (8, 16)
+        @test larger_profile_scenario().grids == (24, 32)
         @test study_scenario().seeds == [2, 3, 4]
+        @test expansion_gate_scenario().allow_synthetic
     end
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8 16") do
         @test profile_projection_scenario().grids == (8, 16)
@@ -226,6 +240,95 @@ end
     @test eonly.boundary_max < 1e-9
     @test eonly.mass_max < 1e-9
     @test get(eval_only_log.counts, :success, 0) == length(data)
+end
+
+@testset "exported summer batch adapter" begin
+    K = 12
+    x = grid(K)
+    w = trapezoid_weights(x)
+    theta = [0.35, 0.82, 1.05, 0.4, -0.25]
+    target = heat_operator_field(x, theta)
+    raw = target .+ 0.04 .* sin.(2pi .* x) .+ 0.02
+
+    function cell(v)
+        return "\"" * join(v, ",") * "\""
+    end
+
+    mktempdir() do dir
+        batch = joinpath(dir, "batch.csv")
+        open(batch, "w") do io
+            println(io, "case_id,raw_output,target_output,grid,left_bc,right_bc,energy_balance,lower_bound,upper_bound")
+            println(io, join(("case_1", cell(raw), cell(target), cell(x),
+                              theta[2], theta[3], mass(target, w), 0.0,
+                              2.0), ","))
+        end
+        samples = read_exported_batch(batch)
+        @test length(samples) == 1
+        @test recommended_mode(samples[1]) === :full_boundary_balance_box
+
+        out = joinpath(dir, "out")
+        rows = evaluate_exported_batch(samples, out = out)
+        review = review_rows(samples, batch)
+        @test length(rows) == 1
+        @test any(row -> row.check == "grid_ordering" &&
+                         row.status == "pass", review)
+        @test any(row -> row.check == "recommended_mode" &&
+                         row.status == "pass", review)
+        @test rows[1].mode === :full_boundary_balance_box
+        @test rows[1].status === :success
+        @test rows[1].corrected_boundary < 1e-9
+        @test rows[1].corrected_balance < 1e-9
+        @test rows[1].corrected_box < 1e-12
+        @test isfile(joinpath(out, "summer_batch_eval.csv"))
+        @test isfile(joinpath(out, "summer_batch_eval.md"))
+    end
+end
+
+@testset "exported summer batch training gate" begin
+    K = 10
+    x = grid(K)
+    w = trapezoid_weights(x)
+
+    function cell(v)
+        return "\"" * join(v, ",") * "\""
+    end
+
+    mktempdir() do dir
+        batch = joinpath(dir, "train_batch.csv")
+        open(batch, "w") do io
+            println(io, "case_id,split,features,target_output,grid,left_bc,right_bc,energy_balance,lower_bound,upper_bound")
+            for i in 1:6
+                left = 0.78 + 0.02i
+                right = 1.08 - 0.015i
+                features = [0.12 + 0.04i, left, right,
+                            0.35 * sin(i), 0.25 * cos(i)]
+                target = heat_operator_field(x, features)
+                split = i <= 4 ? "train" : "test"
+                println(io, join(("case_$(i)", split, cell(features),
+                                  cell(target), cell(x), left, right,
+                                  mass(target, w), 0.0, 2.0), ","))
+            end
+        end
+        samples = read_exported_batch(batch)
+        out = joinpath(dir, "out")
+        rows = run_exported_batch_training(samples, out = out, steps = 4,
+                                           seed = 31,
+                                           success_threshold = 1.0)
+        @test length(rows) == 3
+        @test rows[2].model == "eval_only_corrected"
+        @test rows[2].gate_passed
+        @test rows[2].success_rate == 1.0
+        @test rows[2].boundary_max < 1e-9
+        @test rows[2].balance_max < 1e-9
+        @test rows[3].model == "train_time_corrected"
+        @test rows[3].trained
+        @test rows[3].success_rate == 1.0
+        @test rows[3].boundary_max < 1e-9
+        @test rows[3].balance_max < 1e-9
+        @test isfile(joinpath(out, "summer_batch_training.csv"))
+        @test isfile(joinpath(out, "summer_batch_training.md"))
+        @test isfile(joinpath(out, "summer_batch_training_meta.csv"))
+    end
 end
 
 @testset "DeepONet helper stress checks" begin

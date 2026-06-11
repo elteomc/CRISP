@@ -121,11 +121,83 @@ function verify_sparse_decision()
     decision = row_by(data, names, "metric", "decision")
     value = string(cell(decision, names, "value"))
     value in ("defer_sparse_internals",
-              "profile_larger_outputs_before_deciding") ||
+              "profile_larger_outputs_before_deciding",
+              "defer_sparse_internals_until_real_bottleneck",
+              "measure_solver_internals_on_summer_scale") ||
         error("unexpected sparse decision $(value)")
     max_grid = row_by(data, names, "metric", "max_profile_grid")
     Int(parse(Float64, string(cell(max_grid, names, "value")))) >= 256 ||
         error("profile grid ceiling is too small")
+    larger_used = row_by(data, names, "metric", "larger_profile_used")
+    string(cell(larger_used, names, "value")) == "true" ||
+        error("larger-output profile was not consumed")
+    return nothing
+end
+
+function verify_expanded_seed_gate()
+    data, names = table(require_file(joinpath(OUT,
+                                              "expanded_seed_gate.csv")))
+    sparse = row_by(data, names, "check", "larger_sparse_profile_used")
+    string(cell(sparse, names, "status")) == "pass" ||
+        error("expanded seed gate did not use larger sparse profile")
+    main = row_by(data, names, "check", "expanded_main_allowed")
+    status = string(cell(main, names, "status"))
+    status in ("pass", "fail") ||
+        error("unexpected expanded main gate status $(status)")
+    return nothing
+end
+
+function verify_guarded_actions()
+    run_data, run_names = table(require_file(joinpath(OUT,
+                                                      "expanded_seed_run.csv")))
+    statuses = String.(run_data[:, col(run_names, "status")])
+    all(status -> status in ("blocked", "complete"), statuses) ||
+        error("unexpected expanded seed run status")
+
+    sparse, snames = table(require_file(joinpath(OUT,
+                                                 "sparse_internal_work_decision.csv")))
+    action = row_by(sparse, snames, "metric", "action")
+    string(cell(action, snames, "value")) in
+        ("defer_solver_internal_work",
+         "run_larger_output_profile_first",
+         "measure_solver_internals_on_real_scale",
+         "review_unknown_sparse_decision") ||
+        error("unexpected sparse internal work action")
+    return nothing
+end
+
+function verify_summer_batch_eval()
+    require_file(joinpath(OUT, "summer_batch_fixture.csv"))
+    review, rnames = table(require_file(joinpath(OUT,
+                                                 "summer_batch_review.csv")))
+    source = row_by(review, rnames, "check", "source_kind")
+    string(cell(source, rnames, "status")) == "fixture" ||
+        error("summer batch fixture source was not marked")
+    data, names = table(require_file(joinpath(OUT, "summer_batch_eval.csv")))
+    statuses = String.(data[:, col(names, "status")])
+    all(==("success"), statuses) ||
+        error("summer batch eval contains non-success status")
+    modes = String.(data[:, col(names, "mode")])
+    all(==("full_boundary_balance_box"), modes) ||
+        error("summer batch eval selected unexpected mode")
+    train, tnames = table(require_file(joinpath(OUT,
+                                                "summer_batch_training.csv")))
+    eval_row = row_by(train, tnames, "model", "eval_only_corrected")
+    string(cell(eval_row, tnames, "gate_passed")) == "true" ||
+        error("fixture evaluation gate did not pass")
+    hard_row = row_by(train, tnames, "model", "train_time_corrected")
+    string(cell(hard_row, tnames, "trained")) == "true" ||
+        error("fixture train-time correction did not run")
+    meta, mnames = table(require_file(joinpath(OUT,
+                                               "summer_batch_training_meta.csv")))
+    kind = row_by(meta, mnames, "metric", "source_kind")
+    string(cell(kind, mnames, "value")) == "fixture" ||
+        error("fixture training source kind was not recorded")
+    decision, dnames = table(require_file(joinpath(OUT,
+                                                   "summer_training_decision.csv")))
+    drow = row_by(decision, dnames, "metric", "decision")
+    string(cell(drow, dnames, "value")) == "wait_for_real_export" ||
+        error("fixture training decision should wait for real export")
     return nothing
 end
 
@@ -146,7 +218,15 @@ function verify_required_artifacts()
     for filename in ["summary.txt", "report_table.csv", "report_table.md",
                      "run_scenarios.csv", "result_run_plan.csv",
                      "soft_sweep_pareto.csv", "ablation_interpretation.csv",
-                     "sparse_decision.csv", "stress_diagnostics.csv",
+                     "sparse_decision.csv", "larger_projection_profile.csv",
+                     "expanded_seed_gate.csv", "summer_batch_fixture.csv",
+                     "summer_batch_review.csv", "summer_batch_eval.csv",
+                     "summer_batch_training.csv",
+                     "summer_batch_training_meta.csv",
+                     "summer_training_decision.csv",
+                     "expanded_seed_run.csv",
+                     "sparse_internal_work_decision.csv",
+                     "stress_diagnostics.csv",
                      "failure_mode_summary.csv"]
         require_nonempty(joinpath(OUT, filename))
     end
@@ -164,6 +244,9 @@ verify_statuses()
 verify_stress_outputs()
 verify_soft_sweep()
 verify_sparse_decision()
+verify_expanded_seed_gate()
+verify_guarded_actions()
+verify_summer_batch_eval()
 verify_section()
 
 println("DeepONet report artifact verification passed.")

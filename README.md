@@ -84,16 +84,21 @@ DeepONet larger-grid helper, 5 seeds:
 - A tracked constraint-selection guide explains when boundary, box, positivity, and balance correction are physically justified.
 - A tracked summer integration checklist records the output shape, grid, metadata, units, bounds, balance quantities, hooks, and logging needed from the group DeepONet code.
 - A constraint audit script checks mock or CSV sample metadata and recommends a starting correction mode.
+- A file-backed summer batch fixture, review, evaluation, training gate, and integration decision workflow exercise the adapter schema while making clear that fixture evidence is not a geothermal result.
 - Stress diagnostics exercise infeasible balance, large correction norms, box-only kink status, and malformed adapter rows.
 - A failure-mode figure generator turns stress diagnostics into compact CSV and SVG artifacts.
 - An ablation interpretation generator writes concise report takeaways from the frequency and constraint-family CSVs.
 - A tracked paper-results manifest maps every DeepONet command to artifacts and supported claims.
-- A sparse optimization decision script reads the current DeepONet projection profile and larger-grid timings. The current decision is to profile larger outputs before choosing more result runs or solver-internal sparse work.
+- A sparse optimization decision script now reads the current DeepONet projection profile, larger-output profile, and larger-grid timings. The current decision is to keep cached contexts and defer solver-internal sparse work until a real bottleneck appears.
+- A guarded expanded-seed runner writes blocked rows unless the real summer training gate passes. Current expanded 20 seed and 10 seed jobs are blocked because only fixture evidence exists.
+- A sparse-internal-work decision artifact currently says `defer_solver_internal_work`.
 - The report bundle SVG now combines main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
 - Report diagnostics now classify correction norms into warning bands so successful projections with large raw-output corrections stay visible.
 - A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
 These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
+
+The summer adapter fixture is a smoke test for the CSV interface. It should be replaced by a real exported summer batch before claiming summer or geothermal behavior.
 
 ## Repository Map
 
@@ -153,10 +158,19 @@ julia --project=benchmarks/deeponet benchmarks/deeponet/frequency_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_ablation.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summer_adapter_example.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_audit.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/export_summer_batch_fixture.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_review.jl benchmarks/deeponet/results/summer_batch_fixture.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_eval.jl benchmarks/deeponet/results/summer_batch_fixture.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_train.jl benchmarks/deeponet/results/summer_batch_fixture.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_training_decision.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/stress_diagnostics.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/failure_mode_plots.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/ablation_interpretation.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/profile_larger_outputs.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_decision.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/expanded_seed_gate.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/run_expanded_seed_jobs.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_internal_work_decision.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/summary.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/report_table.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/plots.jl
