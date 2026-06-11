@@ -29,6 +29,7 @@ results/
 *.md
 !README.md
 !quick.md
+!headline_result.md
 !benchmarks/deeponet/constraint_selection_guide.md
 !benchmarks/deeponet/summer_integration_checklist.md
 !benchmarks/deeponet/paper_results_manifest.md

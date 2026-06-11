@@ -150,6 +150,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Wired the paper figure set from existing PNG artifacts: DeepONet accuracy and feasibility, pendulum long-horizon energy, field accuracy and mass violation, and PDE feasibility. The draft builds to nine pages with zero undefined citations.
 - Added the verified DeepONet citation `lu2021deeponet` to `refs.bib` (Nature Machine Intelligence 3, 218-229, 2021, checked against the publisher page) and fixed the draft cite that had pointed at the hard-constraint inverse-design paper.
 - Confirmed the sparse decision artifacts still say `defer_solver_internal_work`, with cached context projection sub-millisecond through K=512.
+- Tagged the current state as `paper-scale-pilot`, the first repository tag.
+- Added `headline_result.md`, a tracked note that isolates the strongest result (train-time hard correction improves accuracy and enforces constraints exactly), proves the evaluation-only half through projection non-expansiveness with feasible targets, and lists four hypotheses and six testable predictions for the unexplained train-time gain.
 
 ## Codebase Map
 
@@ -234,6 +236,7 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 
 Spec and docs
 - `README.md`: public project overview, current status, result snapshot, and reproduction commands.
+- `headline_result.md`: the strongest current result, the provable evaluation-only lemma, the open train-time question, and six testable predictions.
 - `PLAN.md`: active strategy, now centered on DeepONet output correction plus conference-oriented alternatives.
 - `PAST_PLAN.md`: archived original living specification, invariants, milestones, and scope.
 - `pinn_proposal.tex`: updated proposal narrative aligned with StructPINN.
