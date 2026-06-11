@@ -45,20 +45,20 @@ end
 
 function write_rows(rows)
     open(joinpath(OUT, "expanded_seed_run.csv"), "w") do io
-        println(io, "job,status,detail")
+        println(io, "job,scope,status,detail")
         for row in rows
-            println(io, row.job, ",", row.status, ",",
+            println(io, row.job, ",", row.scope, ",", row.status, ",",
                     replace(row.detail, "," => " "))
         end
     end
     open(joinpath(OUT, "expanded_seed_run.md"), "w") do io
         println(io, "# Expanded Seed Run")
         println(io)
-        println(io, "| job | status | detail |")
-        println(io, "| --- | --- | --- |")
+        println(io, "| job | scope | status | detail |")
+        println(io, "| --- | --- | --- | --- |")
         for row in rows
-            println(io, "| ", row.job, " | ", row.status, " | ",
-                    row.detail, " |")
+            println(io, "| ", row.job, " | ", row.scope, " | ",
+                    row.status, " | ", row.detail, " |")
         end
     end
 end
@@ -68,34 +68,36 @@ isfile(gate_path) || error("missing expanded_seed_gate.csv")
 
 main_ok = allowed(gate_path, "expanded_main_allowed")
 large_ok = allowed(gate_path, "expanded_large_allowed")
+scope = row_status(gate_path, "expansion_scope")
+scope in ("synthetic", "real") || error("unexpected expansion scope $(scope)")
 rows = NamedTuple[]
 
 if main_ok && large_ok
     push!(rows, (job = "expanded_main_$(SCENARIO.main_seed_target)_seed",
-                 status = "running",
+                 scope = scope, status = "running",
                  detail = "study.jl with seeds 1:$(SCENARIO.main_seed_target)"))
     write_rows(rows)
     run_with_env("study.jl",
                  "STRUCTPINN_DEEPONET_STUDY_SEEDS" =>
                      "1:$(SCENARIO.main_seed_target)")
-    rows[end] = (job = rows[end].job, status = "complete",
+    rows[end] = (job = rows[end].job, scope = scope, status = "complete",
                  detail = rows[end].detail)
 
     push!(rows, (job = "expanded_large_$(SCENARIO.large_seed_target)_seed",
-                 status = "running",
+                 scope = scope, status = "running",
                  detail = "large_study.jl with seeds 1:$(SCENARIO.large_seed_target)"))
     write_rows(rows)
     run_with_env("large_study.jl",
                  "STRUCTPINN_DEEPONET_LARGE_SEEDS" =>
                      "1:$(SCENARIO.large_seed_target)")
-    rows[end] = (job = rows[end].job, status = "complete",
+    rows[end] = (job = rows[end].job, scope = scope, status = "complete",
                  detail = rows[end].detail)
 else
     push!(rows, (job = "expanded_main_$(SCENARIO.main_seed_target)_seed",
-                 status = "blocked",
+                 scope = scope, status = "blocked",
                  detail = "expanded_main_allowed gate is $(row_status(gate_path, "expanded_main_allowed"))"))
     push!(rows, (job = "expanded_large_$(SCENARIO.large_seed_target)_seed",
-                 status = "blocked",
+                 scope = scope, status = "blocked",
                  detail = "expanded_large_allowed gate is $(row_status(gate_path, "expanded_large_allowed"))"))
 end
 

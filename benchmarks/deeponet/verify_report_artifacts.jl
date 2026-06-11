@@ -144,6 +144,16 @@ function verify_expanded_seed_gate()
     status = string(cell(main, names, "status"))
     status in ("pass", "fail") ||
         error("unexpected expanded main gate status $(status)")
+    claims = row_by(data, names, "check", "summer_claims_allowed")
+    claims_status = string(cell(claims, names, "status"))
+    claims_status in ("pass", "fail") ||
+        error("unexpected summer claims gate status $(claims_status)")
+    scope = row_by(data, names, "check", "expansion_scope")
+    scope_value = string(cell(scope, names, "status"))
+    scope_value in ("synthetic", "real") ||
+        error("unexpected expansion scope $(scope_value)")
+    scope_value == "synthetic" && claims_status == "pass" &&
+        error("synthetic expansion scope must keep summer claims closed")
     return nothing
 end
 
@@ -153,6 +163,9 @@ function verify_guarded_actions()
     statuses = String.(run_data[:, col(run_names, "status")])
     all(status -> status in ("blocked", "complete"), statuses) ||
         error("unexpected expanded seed run status")
+    scopes = String.(run_data[:, col(run_names, "scope")])
+    all(scope -> scope in ("synthetic", "real"), scopes) ||
+        error("unexpected expanded seed run scope")
 
     sparse, snames = table(require_file(joinpath(OUT,
                                                  "sparse_internal_work_decision.csv")))

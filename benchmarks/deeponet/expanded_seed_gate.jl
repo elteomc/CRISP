@@ -106,6 +106,7 @@ end
 
 main_allowed = core_ready && sparse_ready && interface_gate
 large_allowed = core_ready && sparse_ready && interface_gate
+expansion_scope = summer_ready ? "real" : "synthetic"
 
 checks = [
     (check = "core_results_exist", status = passfail(core_ready),
@@ -121,7 +122,11 @@ checks = [
          "source_kind $(summer_source_kind)"),
     (check = "synthetic_expansion_override", status =
          SCENARIO.allow_synthetic ? "pass" : "not_used",
-     detail = "set STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION=true to expand synthetic helper seeds without a real summer batch"),
+     detail = "synthetic seed expansion is allowed by default and set STRUCTPINN_DEEPONET_EXPANSION_REQUIRES_SUMMER=true to re-couple it to the summer gate"),
+    (check = "summer_claims_allowed", status = passfail(summer_ready),
+     detail = "geothermal and summer claims require a real exported batch that passes the training gate"),
+    (check = "expansion_scope", status = expansion_scope,
+     detail = "expanded seed results without a real export are synthetic helper results and must be labeled as synthetic"),
     (check = "expanded_main_allowed", status = passfail(main_allowed),
      detail = command_for(:main)),
     (check = "expanded_large_allowed", status = passfail(large_allowed),
@@ -153,6 +158,10 @@ open(joinpath(OUT, "expanded_seed_gate.md"), "w") do io
     println(io)
     if main_allowed && large_allowed
         println(io, "Expanded seed runs are allowed by the current gates.")
+        println(io, "Expansion scope: ", expansion_scope, ".")
+        if expansion_scope == "synthetic"
+            println(io, "These runs are synthetic helper results. They support the paper scaffold and must not be presented as geothermal or summer results.")
+        end
         println(io)
         println(io, "Run:")
         println(io)

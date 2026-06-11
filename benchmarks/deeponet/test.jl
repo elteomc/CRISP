@@ -25,6 +25,8 @@ using Test, Random, Zygote, LinearAlgebra
     @test larger_profile.samples > 0
     @test expansion.main_seed_target >= 20
     @test expansion.large_seed_target >= 10
+    @test expansion.allow_synthetic
+    @test !expansion.require_summer
     @test large.grids == (64, 96)
     @test length(scenario_rows()) >= 8
     run_plan = final_run_plan_rows()
@@ -36,11 +38,13 @@ using Test, Random, Zygote, LinearAlgebra
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8,16",
             "STRUCTPINN_DEEPONET_LARGER_PROFILE_GRIDS" => "24 32",
             "STRUCTPINN_DEEPONET_STUDY_SEEDS" => "2:4",
-            "STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION" => "true") do
+            "STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION" => "false",
+            "STRUCTPINN_DEEPONET_EXPANSION_REQUIRES_SUMMER" => "true") do
         @test profile_projection_scenario().grids == (8, 16)
         @test larger_profile_scenario().grids == (24, 32)
         @test study_scenario().seeds == [2, 3, 4]
-        @test expansion_gate_scenario().allow_synthetic
+        @test !expansion_gate_scenario().allow_synthetic
+        @test expansion_gate_scenario().require_summer
     end
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8 16") do
         @test profile_projection_scenario().grids == (8, 16)

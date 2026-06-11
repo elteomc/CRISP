@@ -127,10 +127,10 @@ function expansion_gate_scenario()
             out = deeponet_results_dir(),
             allow_synthetic =
                 env_bool("STRUCTPINN_DEEPONET_ALLOW_SYNTHETIC_EXPANSION",
-                         false),
+                         true),
             require_summer =
                 env_bool("STRUCTPINN_DEEPONET_EXPANSION_REQUIRES_SUMMER",
-                         true),
+                         false),
             main_seed_target =
                 env_int("STRUCTPINN_DEEPONET_EXPANDED_MAIN_SEEDS", 20),
             large_seed_target =
