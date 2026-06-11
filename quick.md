@@ -21,7 +21,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - M6 now includes `SparseAffineProjectionCache`, `CachedSparseBoxAffineConstraint`, and `WarmStartedSparseBoxAffineConstraint` for repeated sparse projection performance.
 - M6 now includes `SparseLinearQPActiveSetConstraint` and `SparseLinearQPPrimalDualConstraint`, general sparse backends for `{Aeq * z = beq, G * z <= h}`.
 - The field benchmark now includes heat, viscous Burgers, and Allen-Cahn fixed-grid integrations that train through sparse projection layers at larger grid sizes.
-- Paper-quality pilot artifacts now exist: multi-seed pendulum, fixed-grid field, and larger PDE CSVs plus plots.
+- Paper-scale result artifacts now exist: a 10 seed pendulum study with a soft sweep and a projection-frequency ablation, a 10 seed fixed-grid field study with a soft sweep and correction norms, and a 5 seed larger PDE study with runtime and correction norms, plus plots. Pendulum and field defaults live in scenario layers with `STRUCTPINN_PENDULUM_*` and `STRUCTPINN_FIELD_*` overrides.
 - The old project plan has been archived as `PAST_PLAN.md`.
 - The active `PLAN.md` now prioritizes DeepONet output correction as the summer helper path, while preserving the hard-vs-soft study and sparse scaling paths for a six-month submission-ready target.
 - The `deeponet-helper` branch exists for helper implementation, and `archive/m6-pilot` preserves the pre-helper code snapshot.
@@ -137,6 +137,12 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Ran the expanded synthetic seed jobs: the 20 seed main study and the 10 seed larger-grid study, both complete and labeled synthetic.
 - Regenerated the sparse decision, soft sweep, summary, report tables, plots, run plan, and verification gate from the expanded artifacts. The verification gate passes.
 - Updated `README.md`, `deeponet_results_section.md`, `paper_results_manifest.md`, and `helper_note.txt` with the 20 seed numbers and the synthetic scope language.
+- Upgraded the pendulum study to paper scale: 10 seed default, a soft sweep over beta 1, 5, and 20, runtime columns, status CSVs, and a `PendulumScenarios.jl` layer with `STRUCTPINN_PENDULUM_*` overrides.
+- Added periodic projection to the pendulum module and `benchmarks/pendulum/frequency_ablation.jl`. Every-5-step training projection matches every-step long-horizon RMSE (`0.1124` against `0.1142`) at less than half the training time, and evaluation-only projection reaches `0.1280` with no training overhead.
+- The current 10 seed pendulum run keeps exact energy feasibility and the best long-horizon RMSE (`0.1299` projected against `0.1594` best soft and `0.2779` vanilla), while the strongest soft penalty wins short-horizon RMSE (`0.0241` against `0.0299`). That tradeoff is now part of the paper narrative.
+- Upgraded the field study to paper scale: 10 seed default, a soft sweep over beta 5, 20, and 50, runtime, correction norms, status CSVs, and a `FieldScenarios.jl` layer with `STRUCTPINN_FIELD_*` overrides. Projected RMSE is `0.0112` against vanilla `0.0267`, with exact mass and all-success statuses. The soft sweep degrades accuracy as beta grows without enforcing mass.
+- Upgraded the PDE study to 5 seed default with runtime and correction norms. Heat RMSE is `0.0172`, Burgers `0.0233`, Allen-Cahn `0.0156`, with enforced constraints at numerical precision. The heat correction norm is large (`10.1`) behind all-success statuses, which keeps the raw-output drift phenomenon visible.
+- Verified the pendulum and field test suites, including new scenario config and periodic projection testsets.
 
 ## Codebase Map
 
@@ -170,20 +176,23 @@ Tests (`test/`)
 - `test/test_ad.jl`: Zygote gradients through `correct`.
 
 Pendulum benchmark (`benchmarks/pendulum/`)
-- `benchmarks/pendulum/Pendulum.jl`: pendulum physics, neural ODE field, RK4 rollout, losses, projected rollout, training, status logging, and metrics.
+- `benchmarks/pendulum/Pendulum.jl`: pendulum physics, neural ODE field, RK4 rollout, losses, projected rollout with optional periodic projection, training, status logging, and metrics.
+- `benchmarks/pendulum/PendulumScenarios.jl`: shared scenario settings and environment overrides for pendulum result suites.
 - `benchmarks/pendulum/run_baselines.jl`: single comparison of vanilla, soft, and projected models.
-- `benchmarks/pendulum/study.jl`: multi-seed study writing CSV artifacts.
+- `benchmarks/pendulum/study.jl`: seeded study with a soft sweep, runtime, and status CSVs, currently run at 10 seeds.
+- `benchmarks/pendulum/frequency_ablation.jl`: projection-frequency ablation for no correction, evaluation-only correction, and every-1, 2, or 5 step training correction.
 - `benchmarks/pendulum/plots.jl`: figures from study CSVs.
-- `benchmarks/pendulum/test.jl`: benchmark harness and projected-gradient tests.
+- `benchmarks/pendulum/test.jl`: benchmark harness, scenario config, periodic projection, and projected-gradient tests.
 
 Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/FieldMass.jl`: fixed-grid supervised, heat, Burgers, and Allen-Cahn field data, mass weights, MLP, vanilla and soft losses, unweighted affine, weighted affine, box, nonnegative-normalized, bounded-mass, sparse bounded, and sparse QP field correction, training, status logging, and metrics.
 - `benchmarks/field/run_baselines.jl`: single comparison of vanilla, soft, affine-projected, weighted-projected, box-projected, positive-projected, bounded-projected, and sparse-bounded field models.
 - `benchmarks/field/run_pde_integrations.jl`: heat, Burgers, and Allen-Cahn projected PDE smoke benchmark.
-- `benchmarks/field/pde_study.jl`: multi-seed heat, Burgers, and Allen-Cahn sparse projection study writing PDE result CSVs.
+- `benchmarks/field/FieldScenarios.jl`: shared scenario settings and environment overrides for field result suites.
+- `benchmarks/field/pde_study.jl`: multi-seed heat, Burgers, and Allen-Cahn sparse projection study with runtime and correction norms, currently run at 5 seeds.
 - `benchmarks/field/plots.jl`: field and PDE result plots from study CSVs.
 - `benchmarks/field/profile_sparse_projection.jl`: uncached, cached, and warm-started sparse bounded projection timing and iteration profile.
-- `benchmarks/field/study.jl`: multi-seed field study writing result CSVs.
+- `benchmarks/field/study.jl`: seeded field study with a soft sweep, runtime, correction norms, and status CSVs, currently run at 10 seeds.
 - `benchmarks/field/test.jl`: field harness, projection, PDE integration, training, metric, and gradient tests.
 
 DeepONet helper benchmark (`benchmarks/deeponet/`)

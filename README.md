@@ -43,22 +43,28 @@ The active project direction is to make StructPINN a helper layer for physics-in
 
 Current reproducible pilot artifacts are generated under `benchmarks/*/results`.
 
-Pendulum, 3 seeds:
+Pendulum, 10 seeds with a soft sweep:
 
-- Projected rollout has zero printed energy max error and zero printed long-horizon drift.
-- Long-horizon RMSE is `0.1360` projected, `0.1730` soft, and `0.2261` vanilla.
+- Projected rollout has zero measured energy violation and zero measured long-horizon drift across all seeds, with every projection `:success`.
+- Long-horizon trajectory RMSE is `0.1299` projected, `0.1594` for the best soft row, and `0.2779` vanilla.
+- The tradeoff is honest: the strongest soft penalty wins short-horizon RMSE (`0.0241` against `0.0299` projected) while leaving nonzero energy violation and drift.
+- Projected training costs `6.06` seconds against `2.85` vanilla in the current run.
+- A projection-frequency ablation shows every-5-step training projection matches every-step long-horizon RMSE (`0.1124` against `0.1142`) at less than half the training time, and evaluation-only projection reaches `0.1280` with no training overhead.
 
-Fixed-grid field correction, 3 seeds:
+Fixed-grid field correction, 10 seeds with a soft sweep:
 
-- Vanilla RMSE is `0.0290`.
-- Projected mass-correction RMSE is `0.0116`.
-- Constrained models drive mass error to numerical precision.
+- Vanilla RMSE is `0.0267` with maximum mass error `0.0653`.
+- Projected mass-correction RMSE is `0.0112` with mass error at numerical precision.
+- The soft sweep degrades accuracy as beta grows (`0.0472` at beta 5, `0.1350` at beta 20) without ever enforcing mass exactly.
+- Box-only correction is the negative ablation: it controls bounds but leaves mass uncontrolled.
+- All 80000 training and 160 evaluation projections per constrained model are `:success`, and correction norms are now recorded per model.
 
-Larger PDE integrations, 3 seeds:
+Larger PDE integrations, 5 seeds:
 
-- Heat sparse-bounded RMSE is `0.0170`, with mass and bounds at numerical precision.
-- Burgers sparse-QP-bounded RMSE is `0.0243`, with mass and bounds at numerical precision.
-- Allen-Cahn sparse-QP-box RMSE is `0.0182`, with box bounds at numerical precision.
+- Heat sparse-bounded RMSE is `0.0172`, with mass and bounds at numerical precision.
+- Burgers sparse-QP-bounded RMSE is `0.0233`, with mass and bounds at numerical precision.
+- Allen-Cahn sparse-QP-box RMSE is `0.0156`, with box bounds at numerical precision.
+- Runtime and correction norms are now recorded. The heat study shows a large mean correction norm (`10.1`) behind all-success statuses: training through the projection lets the raw output drift along constrained directions while the corrected field stays accurate. The Allen-Cahn box constraint is inactive at evaluation in the current run.
 
 DeepONet-style heat operator, 20 seeds (synthetic scope):
 
@@ -77,6 +83,7 @@ DeepONet larger-grid helper, 10 seeds (synthetic scope):
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for default grids from K=32 through K=256.
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - A shared DeepONet scenario layer records default grids, seeds, steps, and sample counts, with `STRUCTPINN_DEEPONET_*` overrides for larger or smaller runs.
+- Pendulum and field scenario layers do the same with `STRUCTPINN_PENDULUM_*` and `STRUCTPINN_FIELD_*` overrides, so paper-scale defaults stay auditable.
 - A result-run plan records the broader seed-run priorities and gates before larger compute jobs are launched.
 - A soft-sweep summary reports beta values, best-soft rows, and Pareto tradeoffs over RMSE, violation score, and runtime.
 - A tracked results-section draft and report verification script keep the first DeepONet writeup aligned with generated artifacts.
@@ -133,6 +140,7 @@ Pendulum:
 
 ```powershell
 julia --project=benchmarks/pendulum benchmarks/pendulum/study.jl
+julia --project=benchmarks/pendulum benchmarks/pendulum/frequency_ablation.jl
 julia --project=benchmarks/pendulum benchmarks/pendulum/plots.jl
 ```
 
