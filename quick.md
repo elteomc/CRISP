@@ -27,7 +27,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The `deeponet-helper` branch exists for helper implementation, and `archive/m6-pilot` preserves the pre-helper code snapshot.
 - `benchmarks/deeponet` now implements a small DeepONet-style heat-operator benchmark with vanilla, soft-penalty, hard-corrected, and soft-plus-hard paths.
 - The DeepONet helper test passes, including finite-difference checks through the hard-corrected loss.
-- The first 10 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0248`. Cached full hard correction matches the uncached metrics and reduces mean training time from `1.09` to `0.80` seconds in this small run. Full soft-plus-hard also enforces feasibility with RMSE `0.0456`. Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
+- The expanded 20 seed DeepONet helper study CSVs and plots exist under `benchmarks/deeponet/results`, labeled synthetic scope. Full hard correction drives boundary and mass violations to numerical precision with RMSE `0.0245` against vanilla `0.0602`. Cached full hard correction matches the uncached metrics and reduces mean training time from `0.87` to `0.65` seconds in this small run. Full soft-plus-hard also enforces feasibility with RMSE `0.0435`. Evaluation-only full correction improves vanilla RMSE to `0.0431` while enforcing feasibility. Boundary-box-only correction is a useful negative ablation because it leaves mass uncontrolled.
 - The DeepONet helper now exposes generic adapter helpers so a fixed-grid operator surrogate can supply linear equality rows, per-sample equality values, bounds, and raw output vectors without using the synthetic heat sample type.
 - The DeepONet helper now has projection-frequency and constraint-family ablation scripts. The constraint-family script treats box-only correction as evaluation-only in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
 - The DeepONet helper now has a mock summer adapter example, stress diagnostics, and an ablation interpretation generator.
@@ -45,8 +45,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - The DeepONet report bundle SVG now includes main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
 - The DeepONet helper now has a sparse optimization decision gate. Current profiling says to keep cached contexts as the default and defer solver-internal sparse work until a real bottleneck appears.
 - The DeepONet helper now has larger-output projection profiling through K=512. The updated sparse decision is `defer_sparse_internals_until_real_bottleneck`, because cached context projection remains sub-millisecond in the current larger-output profile.
-- The DeepONet helper now has an expanded-seed gate. It allows 20 seed main and 10 seed larger-grid runs only after core artifacts, larger-output sparse profiling, and the summer training gate pass.
-- Remaining M6 work: replace the deterministic fixture with the first real summer batch, review the chosen correction mode against the physical metadata, then unlock broader seed counts only if the expanded-seed gate passes.
+- The DeepONet helper now has an expanded-seed gate. Synthetic 20 seed main and 10 seed larger-grid runs unlock from core artifacts and larger-output sparse profiling alone, every run row carries a synthetic or real scope label, and a separate `summer_claims_allowed` check stays closed until a real exported batch passes the training gate.
+- The group DeepONet code is expected August 30 at the earliest, so the summer adapter is frozen and the active emphasis is paper work on the synthetic benchmarks: expanded seeds, the hard versus soft study, and the draft.
+- Remaining helper work when the real summer batch arrives: replace the deterministic fixture, review the chosen correction mode against the physical metadata, and only then make summer or geothermal claims.
 
 ## Open Questions
 
@@ -83,7 +84,7 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added and ran `benchmarks/deeponet/export_summer_batch_fixture.jl`, which writes `summer_batch_fixture.csv` in the expected adapter schema.
 - Ran `constraint_audit.jl` and `summer_batch_eval.jl` on `summer_batch_fixture.csv`. The audit selected `full_boundary_balance_box` for all 12 rows, and evaluation returned 12 `:success` statuses with corrected boundary, balance, and box violations at numerical precision.
 - Added and ran `benchmarks/deeponet/summer_batch_review.jl` on `summer_batch_fixture.csv`. Grid ordering, boundary endpoint semantics, balance metadata, and bounds passed. Units remain marked for review because the CSV schema does not encode physical units.
-- Ran `benchmarks/deeponet/summer_batch_train.jl` on `summer_batch_fixture.csv`. The fixture evaluation gate passed with success rate 1, and train-time correction ran. The artifact is marked `source_kind=fixture`, so `expanded_seed_gate.jl` remains closed for real seed expansion.
+- Ran `benchmarks/deeponet/summer_batch_train.jl` on `summer_batch_fixture.csv`. The fixture evaluation gate passed with success rate 1, and train-time correction ran. The artifact is marked `source_kind=fixture`, so summer and geothermal claims stay closed.
 - Added and ran `benchmarks/deeponet/summer_training_decision.jl`. The fixture decision is `wait_for_real_export`: train-time correction is promising on the fixture, but it should not be integrated into the real training loop until an exported summer batch passes the same gate.
 - Added `benchmarks/deeponet/stress_diagnostics.jl`, which checks infeasible balance, large correction norm, box-only kink, and malformed adapter-row cases.
 - Added `benchmarks/deeponet/ablation_interpretation.jl`, which writes report-facing takeaways from the DeepONet ablation CSVs.
@@ -104,10 +105,10 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added `benchmarks/deeponet/sparse_decision.jl`, which writes a report-facing decision on whether sparse solver internals deserve more work now.
 - Added `benchmarks/deeponet/profile_larger_outputs.jl`, which profiles cached and uncached projection overhead at larger output sizes.
 - Added `benchmarks/deeponet/expanded_seed_gate.jl`, which guards 20 seed main and 10 seed larger-grid expansion runs.
-- Added `benchmarks/deeponet/run_expanded_seed_jobs.jl`, which launches expanded seed jobs only when `expanded_seed_gate.jl` passes. The current run wrote blocked rows for both expanded jobs because the source is still a fixture.
+- Added `benchmarks/deeponet/run_expanded_seed_jobs.jl`, which launches expanded seed jobs only when `expanded_seed_gate.jl` passes and labels every run row with a synthetic or real scope.
 - Added `benchmarks/deeponet/sparse_internal_work_decision.jl`, which turns sparse profiling into an action artifact. The current action is `defer_solver_internal_work`.
 - Generated `larger_projection_profile.csv`, regenerated `sparse_decision.csv`, `sparse_decision.md`, `run_scenarios.csv`, `result_run_plan.csv`, and wrote `expanded_seed_gate.csv` plus `expanded_seed_gate.md`.
-- The current expanded-seed gate is intentionally closed because no real `summer_batch_training.csv` has passed the evaluation and train-time correction gates yet.
+- The expanded-seed gate now unlocks synthetic expansion from core artifacts and sparse profiling alone, while the separate `summer_claims_allowed` check stays closed because no real `summer_batch_training.csv` has passed the evaluation and train-time correction gates yet.
 - Expanded `benchmarks/deeponet/report_table.jl` so status and correction-norm diagnostics include the main, frequency, constraint, and larger-grid status artifacts.
 - Updated the helper note with the summer adapter pattern.
 - Updated `PLAN.md`, `helper_note.txt`, `summer_integration_checklist.md`, and `paper_results_manifest.md` with the exported-batch adapter path.
@@ -131,6 +132,11 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added field and PDE plotting scripts, plus a multi-seed larger PDE study.
 - Generated current multi-seed result artifacts. Pendulum projected rollout has zero measured energy drift and lower long-horizon RMSE than vanilla or soft in the current 3 seed run. Fixed-grid mass projection improves RMSE from 0.0290 vanilla to 0.0116 projected while driving mass error to numerical precision. Heat and Burgers PDE studies preserve enforced mass and bounds to numerical precision, and Allen-Cahn enforces bounds to numerical precision.
 - Added a root `README.md` summarizing the goal, current status, result artifacts, and reproduction commands.
+- Re-aimed `PLAN.md` on 2026-06-11: the group DeepONet code is expected August 30 at the earliest, so the summer adapter is frozen and the active emphasis is paper work on the synthetic benchmarks.
+- Decoupled the expanded-seed gate from the summer training gate. Synthetic expansion unlocks from core artifacts and larger-output sparse profiling, run rows carry a synthetic or real scope label, and a separate `summer_claims_allowed` check stays closed without a real export.
+- Ran the expanded synthetic seed jobs: the 20 seed main study and the 10 seed larger-grid study, both complete and labeled synthetic.
+- Regenerated the sparse decision, soft sweep, summary, report tables, plots, run plan, and verification gate from the expanded artifacts. The verification gate passes.
+- Updated `README.md`, `deeponet_results_section.md`, `paper_results_manifest.md`, and `helper_note.txt` with the 20 seed numbers and the synthetic scope language.
 
 ## Codebase Map
 
@@ -184,7 +190,7 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/DeepONetHeat.jl`: DeepONet-style branch/trunk heat-operator model, synthetic heat data, boundary and full boundary-mass-box constraints, prebuilt cached correction contexts, vanilla, soft, hard, and soft-plus-hard losses, training, status logging, correction norms, and metrics.
 - `benchmarks/deeponet/DeepONetScenarios.jl`: shared scenario settings and environment overrides for DeepONet result suites.
 - `benchmarks/deeponet/test.jl`: helper benchmark harness, projection feasibility checks, Zygote gradient checks, training checks, and finite-difference checks through the hard-corrected loss.
-- `benchmarks/deeponet/study.jl`: 10 seed helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`.
+- `benchmarks/deeponet/study.jl`: seeded helper study writing `results.csv`, `statuses.csv`, and `training_curves.csv`, currently run at 20 seeds.
 - `benchmarks/deeponet/large_study.jl`: larger-grid helper study for K=64 and K=96.
 - `benchmarks/deeponet/frequency_ablation.jl`: projection-frequency ablation for no correction, evaluation-only correction, every-step correction, and every-N-step correction.
 - `benchmarks/deeponet/constraint_ablation.jl`: constraint-family ablation for boundary-only, box-only, mass-only, boundary-box, and full correction modes.

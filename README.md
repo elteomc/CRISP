@@ -60,19 +60,19 @@ Larger PDE integrations, 3 seeds:
 - Burgers sparse-QP-bounded RMSE is `0.0243`, with mass and bounds at numerical precision.
 - Allen-Cahn sparse-QP-box RMSE is `0.0182`, with box bounds at numerical precision.
 
-DeepONet-style heat operator, 10 seeds:
+DeepONet-style heat operator, 20 seeds (synthetic scope):
 
-- Full hard-corrected RMSE is `0.0248`, with boundary and mass violations at numerical precision.
-- Cached full hard correction matches the uncached full hard metrics and reduces mean training time from `1.09` to `0.80` seconds in this small run.
-- Full soft-plus-hard RMSE is `0.0456`, also with boundary and mass violations at numerical precision.
-- Evaluation-only full correction improves vanilla RMSE to `0.0447` while enforcing boundary and mass constraints.
-- Vanilla RMSE is `0.0573`, with maximum boundary error `0.1879` and maximum mass error `0.0458`.
-- The best soft-penalty sweep row by RMSE is `0.0610`, and none of the soft rows enforces boundary or mass constraints exactly.
+- Full hard-corrected RMSE is `0.0245`, with boundary and mass violations at numerical precision.
+- Cached full hard correction matches the uncached full hard metrics and reduces mean training time from `0.87` to `0.65` seconds in this small run.
+- Full soft-plus-hard RMSE is `0.0435`, also with boundary and mass violations at numerical precision.
+- Evaluation-only full correction improves vanilla RMSE to `0.0431` while enforcing boundary and mass constraints.
+- Vanilla RMSE is `0.0602`, with maximum boundary error `0.1972` and maximum mass error `0.0582`.
+- The best soft-penalty sweep row by RMSE is `0.0609`, and none of the soft rows enforces boundary or mass constraints exactly.
 
-DeepONet larger-grid helper, 5 seeds:
+DeepONet larger-grid helper, 10 seeds (synthetic scope):
 
-- At K=64, cached full hard correction has RMSE `0.0272`, exact boundary and mass feasibility, and mean training time `1.15` seconds.
-- At K=96, cached full hard correction has RMSE `0.0247`, exact boundary and mass feasibility, and mean training time `2.12` seconds.
+- At K=64, cached full hard correction has RMSE `0.0287`, exact boundary and mass feasibility, and mean training time `0.62` seconds.
+- At K=96, cached full hard correction has RMSE `0.0273`, exact boundary and mass feasibility, and mean training time `2.10` seconds.
 - Evaluation-only full correction improves vanilla predictions while enforcing constraints without retraining.
 - The projection profile reports raw, uncached, cached, context-based, and context-construction timings for default grids from K=32 through K=256.
 - Projection-frequency and constraint-family ablations now write separate CSVs. Box-only correction is kept as an evaluation ablation in this helper because pure box projection can hit active-bound kinks where no training gradient is claimed.
@@ -90,13 +90,13 @@ DeepONet larger-grid helper, 5 seeds:
 - An ablation interpretation generator writes concise report takeaways from the frequency and constraint-family CSVs.
 - A tracked paper-results manifest maps every DeepONet command to artifacts and supported claims.
 - A sparse optimization decision script now reads the current DeepONet projection profile, larger-output profile, and larger-grid timings. The current decision is to keep cached contexts and defer solver-internal sparse work until a real bottleneck appears.
-- A guarded expanded-seed runner writes blocked rows unless the real summer training gate passes. Current expanded 20 seed and 10 seed jobs are blocked because only fixture evidence exists.
+- A guarded expanded-seed runner labels every run with a synthetic or real scope. The 20 seed main and 10 seed larger-grid synthetic runs are complete, and a separate `summer_claims_allowed` check stays closed until a real exported summer batch passes the training gate.
 - A sparse-internal-work decision artifact currently says `defer_solver_internal_work`.
 - The report bundle SVG now combines main helper rows, frequency ablation, constraint-family ablation, sparse decision metrics, and status/correction-norm diagnostics.
 - Report diagnostics now classify correction norms into warning bands so successful projections with large raw-output corrections stay visible.
-- A report-table generator combines the 10 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
+- A report-table generator combines the 20 seed study, larger-grid rows, projection profile, evaluation-only example, statuses, correction norms, and ablations into markdown and CSV tables.
 
-These are pilot-scale results, not final paper claims. The next result step is broader seed counts, harder PDE families, and a polished paper results section.
+These are synthetic helper results, not geothermal claims. The next result step is harder PDE families, paper-scale pendulum and field studies, and a polished paper results section. The group DeepONet code is expected August 30 at the earliest, so the summer adapter is frozen until a real exported batch arrives.
 
 The summer adapter fixture is a smoke test for the CSV interface. It should be replaced by a real exported summer batch before claiming summer or geothermal behavior.
 

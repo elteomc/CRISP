@@ -150,7 +150,7 @@ Supported claims:
 - Batches with `features`, `target_output`, and `grid` can run the same evaluation-first workflow as the synthetic helper.
 - Train-time correction is attempted only after the held-out evaluation-only correction status gate passes.
 - The generated artifacts record raw model metrics, evaluation-only corrected metrics, train-time corrected metrics when run, status counts, correction norms, and the gate decision.
-- The metadata artifact records whether the source was a fixture or an exported batch, so fixture runs do not unlock expanded seed jobs.
+- The metadata artifact records whether the source was a fixture or an exported batch, so fixture runs cannot unlock summer or geothermal claims.
 - The integration decision artifact blocks real-loop integration when the current evidence is only a fixture, when units need review, or when gates fail.
 
 ## Expanded Seed Gate
@@ -172,8 +172,9 @@ Artifacts:
 Supported claims:
 
 - Expanded main and larger-grid seed runs are gated rather than automatic.
-- The gate requires core helper artifacts, larger-output sparse profiling, and a passed summer training gate unless an explicit synthetic override is set.
-- In the current workspace the gate is closed because no real summer training batch has passed the evaluation and train-time correction gates.
+- Synthetic seed expansion needs core helper artifacts and larger-output sparse profiling. It does not wait for the summer batch, which is expected August 30 at the earliest.
+- The gate reports a separate `summer_claims_allowed` check. That check stays closed until a real exported batch passes the evaluation and train-time correction gates.
+- Every expanded run row carries an explicit scope label, `synthetic` or `real`, so synthetic helper results cannot be presented as geothermal or summer results.
 - The guarded runner writes blocked rows instead of launching long jobs when the gate fails.
 
 ## Sparse Internal Work Decision

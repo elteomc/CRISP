@@ -98,13 +98,13 @@ Use `summer_training_decision.jl` after training. It decides whether the result 
 
 Guarded expansion and sparse work
 
-After the summer training decision exists, use these commands to decide whether to spend more compute or engineering time.
+Use these commands to decide whether to spend more compute or engineering time.
 
 julia --project=benchmarks/deeponet benchmarks/deeponet/expanded_seed_gate.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/run_expanded_seed_jobs.jl
 julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_internal_work_decision.jl
 
-The expanded runner only launches long seed jobs when the gate passes. The sparse-internals decision should stay `defer_solver_internal_work` unless projection is measured as the bottleneck on a real summer-sized output.
+The expanded runner only launches long seed jobs when the gate passes. Synthetic seed expansion is allowed once core artifacts and larger-output sparse profiling exist. It does not wait for the summer batch, and every run row carries a synthetic or real scope label. The separate summer_claims_allowed check stays closed until a real exported batch passes the training gate, so synthetic expansion never turns into a geothermal claim. The sparse-internals decision should stay `defer_solver_internal_work` unless projection is measured as the bottleneck on a real summer-sized output.
 
 Useful constraints
 
