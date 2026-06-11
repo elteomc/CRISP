@@ -1,7 +1,31 @@
 include("FieldMass.jl")
+include("FieldScenarios.jl")
 using .FieldMass
+using .FieldScenarios
 using StructPINN: project
 using Test, Random, Zygote
+
+@testset "Field scenario config" begin
+    study = study_scenario()
+    @test study.grid == 32
+    @test length(study.seeds) >= 10
+    @test study.steps >= 100
+    @test length(study.soft_configs) >= 3
+    @test allunique([c.name for c in study.soft_configs])
+
+    pde = pde_study_scenario()
+    @test length(pde.seeds) >= 5
+    @test pde.steps >= 50
+    @test pde.train_samples > pde.test_samples
+
+    withenv("STRUCTPINN_FIELD_STUDY_SEEDS" => "2:4",
+            "STRUCTPINN_FIELD_STUDY_STEPS" => "30",
+            "STRUCTPINN_FIELD_PDE_SEEDS" => "1,4") do
+        @test study_scenario().seeds == [2, 3, 4]
+        @test study_scenario().steps == 30
+        @test pde_study_scenario().seeds == [1, 4]
+    end
+end
 
 @testset "M5 fixed-grid field correction" begin
     K = 32
