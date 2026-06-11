@@ -146,6 +146,10 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Added the harder initial-condition stress family to the field benchmark: `stress_field`, `sample_stress_fields`, `stress_study.jl`, scenario overrides, and tests that assert the family presses the box bounds while staying feasible.
 - Ran the 5 seed stress study. The family is hard for every variant (vanilla RMSE `0.1094` against `0.0267` on the default family) and vanilla violates bounds (maximum lower violation `0.156`). Evaluation-only bounded correction restores exact mass and bounds at RMSE `0.1065` with no retraining, train-time mass projection reaches RMSE `0.0991` with exact mass but uncontrolled bounds, and the soft penalty degrades to `0.2263`. All statuses are success, and kinks would be counted rather than crash the study.
 - Created `paper_draft.tex`, a building LaTeX paper skeleton around the PLAN section 13 narrative with current pilot numbers, claim guardrails, and status notes for the remaining sections. It is local like the proposal and builds with the standard `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` sequence.
+- Fleshed out the paper draft: related-work positioning, formal branch-regularity and active-face VJP statements with the finite-difference verification protocol, the reproducibility contract, a projection-profile runtime table through K=512, and an expanded limitations discussion covering kink refusal and raw-output drift.
+- Wired the paper figure set from existing PNG artifacts: DeepONet accuracy and feasibility, pendulum long-horizon energy, field accuracy and mass violation, and PDE feasibility. The draft builds to nine pages with zero undefined citations.
+- Added the verified DeepONet citation `lu2021deeponet` to `refs.bib` (Nature Machine Intelligence 3, 218-229, 2021, checked against the publisher page) and fixed the draft cite that had pointed at the hard-constraint inverse-design paper.
+- Confirmed the sparse decision artifacts still say `defer_solver_internal_work`, with cached context projection sub-millisecond through K=512.
 
 ## Codebase Map
 
