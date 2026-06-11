@@ -57,6 +57,55 @@ corrected = corrected_output(raw, contexts[i])
 
 The equality rows can be replaced with any physically justified linear rows. The values can be constants or functions of each sample.
 
+Exported batch adapter
+
+When the summer code can export a CSV batch, use the file-backed adapter before changing the training loop.
+
+julia --project=benchmarks/deeponet benchmarks/deeponet/export_summer_batch_fixture.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/constraint_audit.jl path\to\batch.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_review.jl path\to\batch.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_eval.jl path\to\batch.csv
+
+The batch adapter accepts these column names:
+
+case_id
+raw_output
+target_output
+grid
+weights
+left_bc
+right_bc
+balance or energy_balance
+lower_bound
+upper_bound
+
+Vector cells may use comma, space, or pipe separators. If vector cells contain commas, quote the whole cell in the CSV. Scalar bounds are expanded to the output length.
+
+The adapter chooses a starting mode from available metadata, writes summer_batch_eval.csv and summer_batch_eval.md, and reports statuses, correction norms, RMSE, boundary violation, balance violation, and box violation.
+
+Use `export_summer_batch_fixture.jl` only as a smoke fixture when no real summer export exists. It is not a geothermal result.
+
+Use `summer_batch_review.jl` before train-time correction. It checks grid ordering, target endpoint consistency, target balance consistency, target bounds, and whether units still need review.
+
+For a batch that includes features and target_output, run the gated train-time workflow after evaluation-only correction is stable.
+
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_batch_train.jl path\to\batch.csv
+julia --project=benchmarks/deeponet benchmarks/deeponet/summer_training_decision.jl
+
+This trains a vanilla DeepONet-style surrogate, corrects the held-out predictions at evaluation time, checks the projection success rate, and trains through cached correction contexts only if the status gate passes. The default gate requires at least 95 percent successful evaluation projections. Use STRUCTPINN_SUMMER_BATCH_STEPS and STRUCTPINN_SUMMER_BATCH_SUCCESS_THRESHOLD to change the smoke-run size or gate threshold.
+
+Use `summer_training_decision.jl` after training. It decides whether the result is ready for real-loop integration or should wait for a real export, unit review, or a passing status gate.
+
+Guarded expansion and sparse work
+
+After the summer training decision exists, use these commands to decide whether to spend more compute or engineering time.
+
+julia --project=benchmarks/deeponet benchmarks/deeponet/expanded_seed_gate.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/run_expanded_seed_jobs.jl
+julia --project=benchmarks/deeponet benchmarks/deeponet/sparse_internal_work_decision.jl
+
+The expanded runner only launches long seed jobs when the gate passes. The sparse-internals decision should stay `defer_solver_internal_work` unless projection is measured as the bottleneck on a real summer-sized output.
+
 Useful constraints
 
 Boundary values are usually safe when the PDE case study has fixed Dirichlet values and the output vector includes boundary grid points. They can be represented by affine rows selecting the boundary entries.
