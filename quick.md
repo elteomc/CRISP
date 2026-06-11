@@ -143,6 +143,9 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Upgraded the field study to paper scale: 10 seed default, a soft sweep over beta 5, 20, and 50, runtime, correction norms, status CSVs, and a `FieldScenarios.jl` layer with `STRUCTPINN_FIELD_*` overrides. Projected RMSE is `0.0112` against vanilla `0.0267`, with exact mass and all-success statuses. The soft sweep degrades accuracy as beta grows without enforcing mass.
 - Upgraded the PDE study to 5 seed default with runtime and correction norms. Heat RMSE is `0.0172`, Burgers `0.0233`, Allen-Cahn `0.0156`, with enforced constraints at numerical precision. The heat correction norm is large (`10.1`) behind all-success statuses, which keeps the raw-output drift phenomenon visible.
 - Verified the pendulum and field test suites, including new scenario config and periodic projection testsets.
+- Added the harder initial-condition stress family to the field benchmark: `stress_field`, `sample_stress_fields`, `stress_study.jl`, scenario overrides, and tests that assert the family presses the box bounds while staying feasible.
+- Ran the 5 seed stress study. The family is hard for every variant (vanilla RMSE `0.1094` against `0.0267` on the default family) and vanilla violates bounds (maximum lower violation `0.156`). Evaluation-only bounded correction restores exact mass and bounds at RMSE `0.1065` with no retraining, train-time mass projection reaches RMSE `0.0991` with exact mass but uncontrolled bounds, and the soft penalty degrades to `0.2263`. All statuses are success, and kinks would be counted rather than crash the study.
+- Created `paper_draft.tex`, a building LaTeX paper skeleton around the PLAN section 13 narrative with current pilot numbers, claim guardrails, and status notes for the remaining sections. It is local like the proposal and builds with the standard `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` sequence.
 
 ## Codebase Map
 
@@ -190,6 +193,7 @@ Field benchmark (`benchmarks/field/`)
 - `benchmarks/field/run_pde_integrations.jl`: heat, Burgers, and Allen-Cahn projected PDE smoke benchmark.
 - `benchmarks/field/FieldScenarios.jl`: shared scenario settings and environment overrides for field result suites.
 - `benchmarks/field/pde_study.jl`: multi-seed heat, Burgers, and Allen-Cahn sparse projection study with runtime and correction norms, currently run at 5 seeds.
+- `benchmarks/field/stress_study.jl`: harder initial-condition stress family study with train-time mass projection and evaluation-only bound correction, currently run at 5 seeds.
 - `benchmarks/field/plots.jl`: field and PDE result plots from study CSVs.
 - `benchmarks/field/profile_sparse_projection.jl`: uncached, cached, and warm-started sparse bounded projection timing and iteration profile.
 - `benchmarks/field/study.jl`: seeded field study with a soft sweep, runtime, correction norms, and status CSVs, currently run at 10 seeds.

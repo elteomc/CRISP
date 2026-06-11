@@ -59,6 +59,15 @@ Fixed-grid field correction, 10 seeds with a soft sweep:
 - Box-only correction is the negative ablation: it controls bounds but leaves mass uncontrolled.
 - All 80000 training and 160 evaluation projections per constrained model are `:success`, and correction norms are now recorded per model.
 
+Stress-family field correction, 5 seeds:
+
+- A harder initial-condition family presses targets against the [0, 2] box with high-frequency content and a sharp bump. Targets stay feasible by construction.
+- Vanilla RMSE is `0.1094` with maximum mass error `0.0428` and real bound violations (maximum lower violation `0.156`).
+- Train-time mass projection improves RMSE to `0.0991` with exact mass but does not control bounds.
+- Evaluation-only bounded correction restores exact mass and bounds with no retraining at RMSE `0.1065`, slightly better than vanilla.
+- The soft penalty degrades accuracy to `0.2263` without exact enforcement.
+- Bound correction runs at evaluation only with a continue policy, so active-bound kinks would be counted as statuses instead of crashing the study. The current run records all-success statuses.
+
 Larger PDE integrations, 5 seeds:
 
 - Heat sparse-bounded RMSE is `0.0172`, with mass and bounds at numerical precision.
@@ -149,6 +158,7 @@ Field and PDE:
 ```powershell
 julia --project=benchmarks/field benchmarks/field/study.jl
 julia --project=benchmarks/field benchmarks/field/pde_study.jl
+julia --project=benchmarks/field benchmarks/field/stress_study.jl
 julia --project=benchmarks/field benchmarks/field/plots.jl
 ```
 
