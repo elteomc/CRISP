@@ -28,12 +28,21 @@ using Test, Random, Zygote, LinearAlgebra
     @test expansion.allow_synthetic
     @test !expansion.require_summer
     @test large.grids == (64, 96)
-    @test length(scenario_rows()) >= 8
+
+    mechanism = mechanism_scenario()
+    @test length(mechanism.seeds) >= 5
+    @test length(mechanism.sample_grid) >= 4
+    @test issorted(collect(mechanism.sample_grid))
+    @test first(mechanism.noise_levels) == 0.0
+    @test issorted(collect(mechanism.noise_levels))
+
+    @test length(scenario_rows()) >= 9
     run_plan = final_run_plan_rows()
-    @test length(run_plan) >= 8
+    @test length(run_plan) >= 9
     @test run_plan[1].batch == "core_helper_10_seed"
     @test occursin("1:20", run_plan[4].env)
-    @test run_plan[end].batch == "expanded_seed_gate"
+    @test any(row -> row.batch == "expanded_seed_gate", run_plan)
+    @test run_plan[end].batch == "mechanism_study"
 
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8,16",
             "STRUCTPINN_DEEPONET_LARGER_PROFILE_GRIDS" => "24 32",
@@ -49,6 +58,31 @@ using Test, Random, Zygote, LinearAlgebra
     withenv("STRUCTPINN_DEEPONET_PROFILE_GRIDS" => "8 16") do
         @test profile_projection_scenario().grids == (8, 16)
     end
+    withenv("STRUCTPINN_DEEPONET_MECHANISM_NOISE" => "0 0.5",
+            "STRUCTPINN_DEEPONET_MECHANISM_SAMPLE_GRID" => "4,8") do
+        @test mechanism_scenario().noise_levels == (0.0, 0.5)
+        @test mechanism_scenario().sample_grid == (4, 8)
+    end
+end
+
+@testset "projection non-expansiveness on feasible targets" begin
+    # The lemma behind the evaluation-only result: projection onto a convex
+    # set that contains the target can never move a prediction away from it.
+    K = 16
+    rng = MersenneTwister(33)
+    data, x, w = sample_heat_operator(6, K, rng = rng)
+    p = init_deeponet(seed = 33)
+    log = ProjectionLog()
+    for d in data
+        # Targets are feasible to numerical precision by construction.
+        @test boundary_violation(d.u, d) < 1e-12
+        @test mass_violation(d.u, d, w) < 1e-12
+        ctx = heat_correction_context(d, w, mode = :full)
+        raw = deeponet_model(p, d.theta, x)
+        corrected = corrected_output(raw, ctx, log = log)
+        @test norm(corrected .- d.u) <= norm(raw .- d.u) + 1e-10
+    end
+    @test get(log.counts, :success, 0) == length(data)
 end
 
 @testset "DeepONet helper heat benchmark" begin

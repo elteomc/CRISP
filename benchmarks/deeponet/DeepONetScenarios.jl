@@ -4,6 +4,7 @@ export deeponet_results_dir, study_scenario, large_study_scenario,
        profile_projection_scenario, larger_profile_scenario,
        expansion_gate_scenario, frequency_ablation_scenario,
        constraint_ablation_scenario, eval_only_scenario,
+       mechanism_scenario,
        scenario_rows, final_run_plan_rows, scenario_field
 
 const DEFAULT_SOFT_CONFIGS = [
@@ -54,6 +55,18 @@ end
 function env_int_vector(name, default)
     haskey(ENV, name) || return collect(default)
     return parse_int_values(ENV[name])
+end
+
+function parse_float_values(value)
+    text = strip(value)
+    isempty(text) && throw(ArgumentError("empty float list"))
+    parts = occursin(",", text) ? split(text, ",") : split(text)
+    return [parse(Float64, strip(part)) for part in parts if !isempty(strip(part))]
+end
+
+function env_float_tuple(name, default)
+    haskey(ENV, name) || return default
+    return Tuple(parse_float_values(ENV[name]))
 end
 
 scenario_field(row, key) = haskey(row, key) ? row[key] : ""
@@ -137,6 +150,25 @@ function expansion_gate_scenario()
                 env_int("STRUCTPINN_DEEPONET_EXPANDED_LARGE_SEEDS", 10))
 end
 
+function mechanism_scenario()
+    return (name = :mechanism,
+            out = deeponet_results_dir(),
+            grid = env_int("STRUCTPINN_DEEPONET_MECHANISM_GRID", 32),
+            seeds =
+                env_int_vector("STRUCTPINN_DEEPONET_MECHANISM_SEEDS", 1:5),
+            steps = env_int("STRUCTPINN_DEEPONET_MECHANISM_STEPS", 90),
+            train_samples =
+                env_int("STRUCTPINN_DEEPONET_MECHANISM_TRAIN_SAMPLES", 20),
+            test_samples =
+                env_int("STRUCTPINN_DEEPONET_MECHANISM_TEST_SAMPLES", 16),
+            sample_grid =
+                env_int_tuple("STRUCTPINN_DEEPONET_MECHANISM_SAMPLE_GRID",
+                              (4, 8, 16, 32, 64)),
+            noise_levels =
+                env_float_tuple("STRUCTPINN_DEEPONET_MECHANISM_NOISE",
+                                (0.0, 0.02, 0.05, 0.1, 0.2)))
+end
+
 function frequency_ablation_scenario()
     return (name = :frequency_ablation,
             out = deeponet_results_dir(),
@@ -188,6 +220,7 @@ function scenario_rows()
     profile = profile_projection_scenario()
     larger_profile = larger_profile_scenario()
     expansion = expansion_gate_scenario()
+    mechanism = mechanism_scenario()
     frequency = frequency_ablation_scenario()
     constraint = constraint_ablation_scenario()
     eval_only = eval_only_scenario()
@@ -214,6 +247,13 @@ function scenario_rows()
          grids = "32 64 96", seeds =
              "$(expansion.main_seed_target) main $(expansion.large_seed_target) large",
          steps = "", train_samples = "", test_samples = ""),
+        (script = "mechanism_study.jl",
+         scenario = string(mechanism.name),
+         grids = string(mechanism.grid),
+         seeds = format_ints(mechanism.seeds),
+         steps = mechanism.steps,
+         train_samples = format_ints(mechanism.sample_grid),
+         test_samples = mechanism.test_samples),
         (script = "frequency_ablation.jl",
          scenario = string(frequency.name),
          grids = string(frequency.grid),
@@ -241,6 +281,7 @@ function final_run_plan_rows()
     profile = profile_projection_scenario()
     larger_profile = larger_profile_scenario()
     expansion = expansion_gate_scenario()
+    mechanism = mechanism_scenario()
     return [
         (priority = 1, batch = "core_helper_10_seed",
          command = "julia --project=benchmarks/deeponet benchmarks/deeponet/study.jl",
@@ -304,6 +345,15 @@ function final_run_plan_rows()
          steps = "", train_samples = "", test_samples = "",
          gate = "run before expanded seed-count result jobs",
          purpose = "guard expanded main and larger-grid seed runs"),
+        (priority = 9, batch = "mechanism_study",
+         command = "julia --project=benchmarks/deeponet benchmarks/deeponet/mechanism_study.jl",
+         env = "", grids = string(mechanism.grid),
+         seeds = format_ints(mechanism.seeds),
+         steps = string(mechanism.steps),
+         train_samples = format_ints(mechanism.sample_grid),
+         test_samples = mechanism.test_samples,
+         gate = "run after core helper artifacts exist",
+         purpose = "test the non-expansiveness, low-data, and constraint-noise predictions"),
     ]
 end
 
