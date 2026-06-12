@@ -114,6 +114,50 @@ size of the gain is the open scientific question.
    anchor costs tangent accuracy. H4 predicts a regime where capping drift is
    free. The soft-sweep machinery already supports this at small beta values.
 
+## First experimental returns (2026-06-12)
+
+`benchmarks/deeponet/mechanism_study.jl` ran predictions 1, 5, and 4 at 5
+seeds. Artifacts: `mechanism_nonexpansive.csv`, `mechanism_low_data.csv`,
+`mechanism_noise.csv`, `mechanism_summary.csv`, `mechanism_statuses.csv`.
+
+**Prediction 1 verified.** Across 80 held-out samples, evaluation-only
+correction reduced the error of every single sample. The largest delta was
+strictly negative (-1.14e-2) and target infeasibility was exactly zero. The
+lemma is now empirically checked, and a permanent testset
+(`projection non-expansiveness on feasible targets`) guards it.
+
+**Prediction 5 refuted.** The naive low-data version of H1 predicted the
+hard-correction advantage grows as training data shrinks. The opposite
+happened: the vanilla-to-hard RMSE ratio is 1.63 at 4 training samples,
+2.18 at 8, 2.60 at 16, and saturates near 2.76 at 64. Reading: the
+projection only removes the constraint-normal error component, and with
+almost no data the tangent component is equally bad for everyone, so there
+is little advantage to amplify. The dimensionality story needs revision:
+the gain looks multiplicative on a model that has already learned
+something, not a substitute for data.
+
+**Prediction 4 confirmed and quantified.** With constraint values perturbed
+away from the data, correction degrades smoothly and crosses below vanilla
+(RMSE 0.0635) at a measurable noise scale:
+
+| eps | eval-only RMSE | hard RMSE |
+| --- | --- | --- |
+| 0.00 | 0.0460 | 0.0254 |
+| 0.02 | 0.0512 | 0.0333 |
+| 0.05 | 0.0676 | 0.0548 |
+| 0.10 | 0.0983 | 0.0884 |
+| 0.20 | 0.1802 | 0.1743 |
+
+Evaluation-only correction stops paying at eps = 0.05 and train-time
+correction at eps = 0.10, where eps is the absolute noise scale on
+constraint values against fields of order one. Train-time correction beats
+evaluation-only at every noise level. The corrected output's violation of
+the true boundary values tracks eps almost exactly, because the projection
+faithfully enforces the wrong numbers. The practical rule for the summer
+integration: constraint metadata must be accurate to a few percent of the
+field scale, otherwise hard correction actively hurts, and the audit step
+that checks metadata against data is not optional.
+
 ## What this result does not claim
 
 - The constraint metadata in these benchmarks (mass, boundary values) is

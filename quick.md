@@ -152,6 +152,8 @@ StructPINN builds differentiable hard-constraint layers for PINNs, operator surr
 - Confirmed the sparse decision artifacts still say `defer_solver_internal_work`, with cached context projection sub-millisecond through K=512.
 - Tagged the current state as `paper-scale-pilot`, the first repository tag.
 - Added `headline_result.md`, a tracked note that isolates the strongest result (train-time hard correction improves accuracy and enforces constraints exactly), proves the evaluation-only half through projection non-expansiveness with feasible targets, and lists four hypotheses and six testable predictions for the unexplained train-time gain.
+- Added `benchmarks/deeponet/mechanism_study.jl` with `STRUCTPINN_DEEPONET_MECHANISM_*` scenario overrides and ran it at 5 seeds. Prediction 1 is verified: evaluation-only correction reduced the error of all 80 held-out samples, and a permanent non-expansiveness testset now guards the lemma. Prediction 5 is refuted: the vanilla-to-hard advantage grows from 1.63 at 4 training samples to about 2.76 at 64 and saturates, so the gain amplifies a trained model rather than substituting for data. Prediction 4 is quantified: correction falls below the vanilla baseline once constraint-value noise reaches about 0.05 of the field scale for evaluation-only and about 0.10 for train-time correction, which makes metadata audits a deployment precondition.
+- Updated `headline_result.md`, the paper draft ablation section, and `deep.md` with the mechanism findings. The report verification gate still passes.
 
 ## Codebase Map
 
@@ -217,6 +219,7 @@ DeepONet helper benchmark (`benchmarks/deeponet/`)
 - `benchmarks/deeponet/stress_diagnostics.jl`: status-contract stress diagnostics for infeasibility, large corrections, kinks, and malformed rows.
 - `benchmarks/deeponet/ablation_interpretation.jl`: report-facing interpretation of the frequency and constraint-family ablations.
 - `benchmarks/deeponet/sparse_decision.jl`: sparse optimization decision gate from projection profile and larger-grid timing artifacts.
+- `benchmarks/deeponet/mechanism_study.jl`: tests the headline-result predictions, per-sample non-expansiveness, the low-data sweep, and feasibility-breaking constraint noise.
 - `benchmarks/deeponet/constraint_selection_guide.md`: guide for choosing physically justified constraints for summer DeepONet outputs.
 - `benchmarks/deeponet/summer_integration_checklist.md`: checklist for integrating StructPINN with the group DeepONet code.
 - `benchmarks/deeponet/constraint_audit.jl`: metadata audit for mock or CSV sample batches.
